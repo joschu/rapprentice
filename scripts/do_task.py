@@ -9,7 +9,8 @@ parser.add_argument("--fake_data_segment",type=str)
 parser.add_argument("--interactive",action="store_true")
 parser.add_argument("--cloud_proc_func", default="extract_red")
 parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
-parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),default=[0,0,0,0,0,0])
+parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),
+    default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
 args = parser.parse_args()
 if args.sensor_mode == "fake": assert args.fake_data_segment is not None
 ###################
