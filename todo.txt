@@ -1,0 +1,3 @@
+- program hangs if you do ctrl-c in the middle of trajectory
+- registration kinda sucks. parameters?
+- geometric mean trick in registration
