@@ -1,23 +1,25 @@
 #!/usr/bin/env python
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--rsync",action="store_true")
+parser.add_argument("path", help="script will create a sampledata directory in this location")
 args = parser.parse_args()
 
-import os, urllib2, zipfile, subprocess
+import os, urllib2, subprocess, shutil
 import os.path as osp
 import rapprentice
-os.chdir(osp.join(osp.dirname(osp.dirname(rapprentice.__file__)),"sampledata"))
+from rapprentice.yes_or_no import yes_or_no
+os.chdir(args.path)
+if os.path.exists("sampledata"):
+    yn = yes_or_no("delete old directory")
+    if yn: shutil.rmtree("sampledata")
+    else: raise IOError
+os.mkdir("sampledata")
+os.chdir("sampledata")
 
-
-if args.rsync: 
-    subprocess.check_call("rsync -azvu pabbeel@rll.berkeley.edu:/var/www/rapprentice/sampledata ./ --exclude '*.py'", shell=True)
-
-else:
-    print "downloading zip file (this might take a while)"
-    urlinfo = urllib2.urlopen("http://rll.berkeley.edu/rapprentice/sampledata/all.zip")
-    print "unpacking file"
-    with open("all.zip","w") as fh:
-        fh.write(urlinfo.read())
-    with zipfile.ZipFile("all.zip","r") as myzip:
-        myzip.extractall(".")
+print "downloading zip file"
+urlinfo = urllib2.urlopen("http://rll.berkeley.edu/rapprentice/sampledata/all.tar")
+with open("all.tar","w") as fh:
+    fh.write(urlinfo.read())
+print "unpacking file"
+subprocess.check_call("tar xvf all.tar", shell=True)
+os.unlink("all.tar")

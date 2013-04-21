@@ -4,19 +4,16 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--delete", action="store_true")
+parser.add_argument("sampledata_dir")
 args = parser.parse_args()
 
 import subprocess,os
 import os.path as osp
 import rapprentice
-os.chdir(osp.join(osp.dirname(osp.dirname(rapprentice.__file__)),"sampledata"))
+os.chdir(args.sampledata_dir)
 
 print "creating zip file"
-import zipfile
-with zipfile.ZipFile("all.zip","w") as myzip:
-    for fname in os.listdir("."):
-        if not (fname.endswith("py") or fname.endswith("zip")):
-            myzip.write(fname)
+subprocess.check_call('tar cvf all.tar . --exclude all.tar',shell=True)
 print "uploading"            
-subprocess.check_call("rsync -azvu %s ./ pabbeel@rll.berkeley.edu:/var/www/rapprentice/sampledata/ --exclude '*.py'"%("--delete" if args.delete else ""), shell=True)
+subprocess.check_call("rsync -azvu %s ./ pabbeel@rll.berkeley.edu:/var/www/rapprentice/sampledata"%("--delete" if args.delete else ""), shell=True)
             
