@@ -16,8 +16,11 @@ Rapprentice: teaching robots by example
 Dependencies and build procedure
 ==================================
 
+Download the source from https://github.com/joschu/rapprentice
+
 Dependencies:
 
+- pcl >= 1.6
 - `trajopt <https://github.com/joschu/trajopt>`_. devel branch. Build with the option BUILD_CLOUDPROC enabled.
 - python modules: scipy, h5py, networkx, cv2 (OpenCV)
 

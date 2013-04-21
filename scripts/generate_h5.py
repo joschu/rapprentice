@@ -20,6 +20,12 @@ import h5py
 from rapprentice.yes_or_no import yes_or_no
 from rapprentice import bag_proc
 import yaml
+import importlib, inspect
+import numpy as np
+
+cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
+cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
+
 
 with open(args.task_file, "r") as fh: task_info = yaml.load(fh)
 

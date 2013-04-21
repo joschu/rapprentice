@@ -91,7 +91,7 @@ def follow_body_traj(pr2, bodypart2traj, wait=True, base_frame = "/base_footprin
     
 
     times = retiming.retime_with_vel_limits(trajectories, vel_limits)
-    times_up = np.arange(0,times[-1]+1e-4,.1)
+    times_up = np.linspace(0, times[-1], int(np.ceil(times[-1]/.1)))
     traj_up = mu.interp2d(times_up, times, trajectories)
     
     

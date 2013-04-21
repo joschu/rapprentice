@@ -18,9 +18,8 @@ if args.sensor_mode == "fake": assert args.fake_data_segment is not None
 
 from rapprentice import registration, colorize, berkeley_pr2, \
      animate_traj, ros2rave, plotting_openrave
-if args.exec_mode=="real": 
-    from rapprentice import pr2_trajectories, PR2
-    import rospy
+from rapprentice import pr2_trajectories, PR2
+import rospy
 
 import cloudprocpy, trajoptpy, json, openravepy
 import os, numpy as np, h5py, os.path as osp
@@ -66,10 +65,7 @@ def binarize_gripper(angle):
 
     
 def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
-    
-    new_hmats = new_hmats[::3]
-    old_traj = old_traj[::3]
-    
+        
     n_steps = len(new_hmats)
     assert old_traj.shape[0] == n_steps
     assert old_traj.shape[1] == 7
@@ -210,7 +206,7 @@ def main():
 
 
 
-    if args.exec_mode == "fake":
+    if args.exec_mode == "fake" and args.sensor_mode == "fake":
         Globals.env = openravepy.Environment()
         Globals.env.StopSimulation()
         Globals.env.Load("robots/pr2-beta-static.zae")    
@@ -249,6 +245,8 @@ def main():
             if args.exec_mode=="real": 
                 Globals.pr2.rarm.goto_posture('side')
                 Globals.pr2.larm.goto_posture('side')            
+                Globals.pr2.join_all()
+            if args.sensor_mode == "real":
                 Globals.pr2.update_rave()            
             rgb, depth = grabber.getRGBD()
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
@@ -299,9 +297,10 @@ def main():
     
         miniseg_starts, miniseg_ends = split_trajectory_by_gripper(seg_info)    
         success = True
+        print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
-            if args.exec_mode=="real": Globals.pr2.update_rave()
+            if args.sensor_mode=="real": Globals.pr2.update_rave()
 
 
             ################################    
@@ -317,7 +316,7 @@ def main():
                 if arm_moved(old_joint_traj):          
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     new_ee_traj = link2eetraj[ee_link_name]
-                    if args.exec_mode=="real": Globals.pr2.update_rave()                    
+                    if args.sensor_mode=="real": Globals.pr2.update_rave()                    
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
                      Globals.robot.GetLink(ee_link_name), new_ee_traj[i_start:i_end+1], 
                      old_joint_traj)
@@ -333,7 +332,7 @@ def main():
 
             for lr in 'lr':
                 set_gripper_maybesim(lr, binarize_gripper(seg_info["%s_gripper_joint"%lr][i_start]))
-            trajoptpy.GetViewer(Globals.env).Idle()
+            #trajoptpy.GetViewer(Globals.env).Idle()
         
             if len(bodypart2traj) > 0:
                 exec_traj_maybesim(bodypart2traj)

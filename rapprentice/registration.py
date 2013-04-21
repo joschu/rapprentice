@@ -114,7 +114,7 @@ def loglinspace(a,b,n):
     return np.exp(np.linspace(np.log(a),np.log(b),n))    
 
 
-def tps_rpm(x_nd, y_md, n_iter = 5, reg_init = .1, reg_final = .001, rad_init = .2, rad_final = .001, 
+def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .05, rad_final = .001, 
             plotting = False, verbose=True, f_init = None, return_full = False, plot_cb = None):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
@@ -258,11 +258,13 @@ def calc_correspondence_matrix(x_nd, y_md, r, p, n_iter=20):
     m = y_md.shape[0]
     dist_nm = ssd.cdist(x_nd, y_md,'euclidean')
     prob_nm = np.exp(-dist_nm / r)
+    prob_nm_orig = prob_nm.copy()
     for _ in xrange(n_iter):
         prob_nm /= (p*((n+0.)/m) + prob_nm.sum(axis=0))[None,:]  # cols sum to n/m
         prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
 
-
+    prob_nm = np.sqrt(prob_nm_orig * prob_nm)
+    prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
     return prob_nm
 
 def nan2zero(x):
@@ -290,7 +292,7 @@ def orthogonalize3_cross(mats_n33):
 
 def orthogonalize3_svd(x_k33):
     u_k33, _s_k3, v_k33 = svds.svds(x_k33)
-    return (u_k33[:,:,:,None] * v_k33[:,None,:,:]).sum(axis=3)
+    return (u_k33[:,:,:,None] * v_k33[:,None,:,:]).sum(axis=2)
 
 def orthogonalize3_qr(_x_k33):
     raise NotImplementedError
