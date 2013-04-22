@@ -182,7 +182,7 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     handles = []
     handles.append(Globals.env.plot3(ypred_nd, 3, (0,1,0)))
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, x_nd.min(axis=0), x_nd.max(axis=0), xres = .1, yres = .1, zres = .04))
-    Globals.viewer.Idle()
+    Globals.viewer.Step()
 ###################
 
 
@@ -216,18 +216,24 @@ def main():
         Globals.pr2 = PR2.PR2()
         Globals.env = Globals.pr2.env
         Globals.robot = Globals.pr2.robot
-    Globals.viewer = trajoptpy.GetViewer(Globals.env)
+
 
     if args.sensor_mode == "fake":
         seg_info = demofile[args.fake_data_segment]    
         r2r = ros2rave.RosToRave(Globals.robot, seg_info["joint_states"]["name"])
         r2r.set_values(Globals.robot, seg_info["joint_states"]["position"][0])
     else:
+        print "starting streaming point clouds"
+        import subprocess
+        try: subprocess.check_call("killall XnSensorServer", shell=True)
+        except subprocess.CalledProcessError: pass
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
+        print "ok"
 
 
 
+    Globals.viewer = trajoptpy.GetViewer(Globals.env)
 
     #####################
 
