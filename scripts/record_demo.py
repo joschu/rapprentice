@@ -18,6 +18,8 @@ time_string  = time.strftime("%Y-%m-%d-%H-%M-%S", localtime)
 
 basename = args.prefix + "_" + time_string
 
+subprocess.call("killall XnSensorServer", shell=True)
+
 try:
 
     bag_cmd = "rosbag record /joint_states /joy -O %s"%basename
@@ -25,13 +27,12 @@ try:
     bag_handle = subprocess.Popen(bag_cmd, shell=True)
     started_bag = True
     
-    video_cmd = "~/build/rgbd_video/bin/record_rgbd_video --out=%s --downsample=%i"%(basename, args.downsample)
+    video_cmd = "record_rgbd_video --out=%s --downsample=%i"%(basename, args.downsample)
     print colorize(video_cmd, "green")
     video_handle = subprocess.Popen(video_cmd, shell=True)
     started_video = True
     
-    time.sleep(9999)
-    
+    time.sleep(9999)    
 except KeyboardInterrupt:
     print colorize("got control-c", "green")
 
