@@ -9,9 +9,6 @@ from rapprentice import bag_proc
 
 import yaml, rosbag
 
-outfilename = args.bagfile + ".annot.yaml"
-
-
 bag = rosbag.Bag(args.bagfile)
 stamps, meanings = bag_proc.extract_joy(bag)
 print "joystick button presses:"
