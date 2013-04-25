@@ -94,5 +94,5 @@ int main(int argc, char** argv) {
   }
   stampfile.close();
 
-  printf("done\n");
+  printf("rgbd video: done\n");
 }

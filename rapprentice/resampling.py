@@ -4,6 +4,7 @@ Resample time serieses to reduce the number of datapoints
 from __future__ import division
 import numpy as np
 from rapprentice import log
+import fastrapp
 
 def lerp(a, b, fracs):
     "linearly interpolate between a and b"
@@ -52,12 +53,25 @@ def test_resample():
     print "success"
 
 
+    inds1 = fastrapp.resample(np.array(x)[:,None], t, 0, np.inf, np.inf)
+    print inds1
+    assert inds1.tolist() == [0,2,6,8]
+
 def test_resample_big():
-    t = np.linspace(0,1,10000)
+    from time import time
+    t = np.linspace(0,1,1000)
     x0 = np.sin(t)[:,None]
     x = x0 + np.random.randn(len(x0), 50)*.1
-    adaptive_resample(x, t=t, max_err = .05, max_dt = .1)
+    tstart = time()
+    inds0 = adaptive_resample(x, t=t, max_err = .05, max_dt = .1)
+    print time() - tstart, "seconds"
+
+    print "now doing cpp version"
+    tstart = time()
+    inds1 = fastrapp.resample(x, t, .05, np.inf, .1)
+    print time() - tstart, "seconds"
     
+    assert np.allclose(inds0, inds1)
 if __name__ == "__main__":
     test_resample()
     test_resample_big()

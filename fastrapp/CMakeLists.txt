@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 2.8)
-project(rgbd_video)
+project(fastrapp)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
 
 find_package(OpenCV REQUIRED)
 find_package(PCL 1.6 REQUIRED)
+include(boost-python.cmake)
 
 # http://cmake.3232098.n2.nabble.com/Default-value-for-CMAKE-BUILD-TYPE-td7550756.html
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -31,3 +34,9 @@ add_definitions(${PCL_DEFINITIONS})
 
 add_executable(record_rgbd_video record_rgbd_video.cpp config.cpp)
 target_link_libraries(record_rgbd_video ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl_io ${ROS_LIBRARIES} boost_program_options)
+
+include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
+boost_python_module(fastrapp fastrapp.cpp)
+
+
+

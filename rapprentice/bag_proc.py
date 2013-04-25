@@ -1,4 +1,5 @@
-from rapprentice import ros2rave, resampling, func_utils, berkeley_pr2
+from rapprentice import ros2rave, func_utils, berkeley_pr2
+import fastrapp
 import numpy as np
 import cv2
 import openravepy
@@ -128,9 +129,8 @@ def add_bag_to_hdf(bag, annotations, hdfroot):
         
         stamps_seg = stamps[i_start:i_stop+1]
         traj_seg = traj[i_start:i_stop+1]
-    
-        def normfunc(dx): return dx.__abs__().max()        
-        sample_inds = resampling.adaptive_resample(traj_seg, max_err = .01, normfunc=normfunc)
+         
+        sample_inds = fastrapp.resample(traj_seg, [], .01)
     
         traj_ds = traj_seg[sample_inds,:]
         stamps_ds = stamps_seg[sample_inds]
