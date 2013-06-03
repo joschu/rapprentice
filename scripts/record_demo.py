@@ -2,7 +2,7 @@
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("prefix")
+parser.add_argument("demo_prefix")
 parser.add_argument("master_file")
 parser.add_argument("--downsample", default=3, type=int)
 args = parser.parse_args()
@@ -13,6 +13,8 @@ import time, os, shutil
 from rapprentice.call_and_print import call_and_print
 from rapprentice.yes_or_no import yes_or_no
 import os.path as osp
+import itertools
+import yaml
 
 started_bag = False
 started_video = False
@@ -21,18 +23,24 @@ localtime   = time.localtime()
 time_string  = time.strftime("%Y-%m-%d-%H-%M-%S", localtime)
 
 os.chdir(osp.dirname(args.master_file))
-basename = args.prefix
+
+with open(args.master_file, "r") as fh: master_info = yaml.load(fh)
+for suffix in itertools.chain("", (str(i) for i in itertools.count())):
+    demo_name = args.demo_prefix + suffix
+    if not any(bag["demo_name"] == demo_name for bag in master_info["bags"]):
+        break
+    print demo_name
 
 subprocess.call("killall XnSensorServer", shell=True)
 
 try:
 
-    bag_cmd = "rosbag record /joint_states /joy -O %s"%basename
+    bag_cmd = "rosbag record /joint_states /joy -O %s"%demo_name
     print colorize(bag_cmd, "green")
     bag_handle = subprocess.Popen(bag_cmd, shell=True)
     started_bag = True
     
-    video_cmd = "record_rgbd_video --out=%s --downsample=%i"%(basename, args.downsample)
+    video_cmd = "record_rgbd_video --out=%s --downsample=%i"%(demo_name, args.downsample)
     print colorize(video_cmd, "green")
     video_handle = subprocess.Popen(video_cmd, shell=True)
     started_video = True
@@ -52,15 +60,16 @@ finally:
         video_handle.wait()
 
 
-bagfilename = basename+".bag"
+bagfilename = demo_name+".bag"
 if yes_or_no("save demo?"):
-    annfilename = basename+".ann.yaml"
+    annfilename = demo_name+".ann.yaml"
     call_and_print("generate_annotations.py %s %s"%(bagfilename, annfilename))
     with open(args.master_file,"a") as fh:
         fh.write("\n"
-            "- bag_file %(bagfilename)s\n"
+            "- bag_file: %(bagfilename)s\n"
             "  annotation_file: %(annfilename)s\n"
-            "  video_dir: %(videodir)s"%dict(bagfilename=bagfilename, annfilename=annfilename, videodir=basename))
+            "  video_dir: %(videodir)s"
+            "  demo_name: %(demoname)s"%dict(bagfilename=bagfilename, annfilename=annfilename, videodir=demo_name, demoname=demo_name))
 else:
-    shutil.rmtree(basename) #video dir
+    shutil.rmtree(demo_name) #video dir
     os.unlink(bagfilename)

@@ -110,7 +110,7 @@ def get_robot():
     robot = env.GetRobots()[0]
     return robot
     
-def add_bag_to_hdf(bag, annotations, hdfroot):
+def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
     joint_names, stamps, traj = extract_joints(bag)
     traj = np.asarray(traj)
     stamps = np.asarray(stamps)
@@ -120,7 +120,7 @@ def add_bag_to_hdf(bag, annotations, hdfroot):
     for seg_info in annotations:
 
 
-        group = hdfroot.create_group(seg_info["name"])
+        group = hdfroot.create_group(demo_name + "_" + seg_info["name"])
     
         start = seg_info["start"]
         stop = seg_info["stop"]
@@ -159,14 +159,14 @@ def get_video_frames(video_dir, frame_stamps):
     return rgbs, depths
 
 
-def add_rgbd_to_hdf(video_dir, annotations, hdfroot):
+def add_rgbd_to_hdf(video_dir, annotations, hdfroot, demo_name):
     
     frame_stamps = [seg_info["look"] for seg_info in annotations]
     
     rgb_imgs, depth_imgs = get_video_frames(video_dir, frame_stamps)
     
-    for (i_seg, seg_info) in enumerate(annotations):
-        group = hdfroot[seg_info["name"]]
+    for (i_seg, seg_info) in enumerate(annotations):        
+        group = hdfroot[demo_name + "_" + seg_info["name"]]
         group["rgb"] = rgb_imgs[i_seg]
         group["depth"] = depth_imgs[i_seg]
         robot = get_robot()

@@ -36,10 +36,8 @@ task_dir = osp.dirname(args.task_file)
 
 
 h5path = osp.join(task_dir, task_info["h5path"].strip())
-if osp.exists(h5path):
-    
-    if args.no_prompt or yes_or_no("delete old file? %s"%h5path):
-        os.unlink(h5path)
+if osp.exists(h5path):    
+    os.unlink(h5path)
         
     
 hdf = h5py.File(h5path)
@@ -47,7 +45,7 @@ hdf = h5py.File(h5path)
     
 bag_infos = task_info["bags"]
 
-for bag_info in bag_infos:
+for (i_bag, bag_info) in enumerate(bag_infos):
     bag_file = osp.join(task_dir, bag_info["bag_file"])
     ann_file = osp.join(task_dir, bag_info["annotation_file"])
     video_dir = bag_info["video_dir"]
@@ -55,8 +53,8 @@ for bag_info in bag_infos:
     bag = rosbag.Bag(bag_file)
     with open(ann_file, "r") as fh: annotations = yaml.load(fh)
     
-    bag_proc.add_bag_to_hdf(bag, annotations, hdf)
-    bag_proc.add_rgbd_to_hdf(osp.join(task_dir, video_dir), annotations, hdf)
+    bag_proc.add_bag_to_hdf(bag, annotations, hdf, bag_info["demo_name"])
+    bag_proc.add_rgbd_to_hdf(osp.join(task_dir, video_dir), annotations, hdf, bag_info["demo_name"])
     
     
 
