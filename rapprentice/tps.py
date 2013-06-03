@@ -186,6 +186,7 @@ def solve_eqp1(H, f, A):
     return x
     
 def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
+    if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
     assert d == 3
     K_nn = ssd.squareform(ssd.pdist(x_na))
