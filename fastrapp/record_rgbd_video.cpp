@@ -13,8 +13,11 @@ using namespace util;
 
 // parameters
 int downsample = 3;
+bool wait_for_prompt = false;
+bool verbose = true;
 ////
 
+bool frame_requested = false; // only relevant when wait_for_prompt = true;
 
 vector<double> stamps;
 int sizes[2] = {480, 640};
@@ -25,7 +28,7 @@ fs::path rgbd_dir;
 
 void callback (const boost::shared_ptr<openni_wrapper::Image>& rgb, const boost::shared_ptr<openni_wrapper::DepthImage>& depth, float constant) {
   static int total_counter=0, save_counter=0;
-  if (total_counter % downsample == 0) {
+  if ( (wait_for_prompt && frame_requested) || (!wait_for_prompt && (total_counter % downsample == 0)) ) {
     stamps.push_back(ros::Time::now().toSec());
     const XnDepthPixel* depth_data = depth->getDepthMetaData().Data(); //unsigned short
 
@@ -40,9 +43,15 @@ void callback (const boost::shared_ptr<openni_wrapper::Image>& rgb, const boost:
 
     depth->fillDepthImageRaw(640, 480, (unsigned short*) depth_mat.data);
 
-    cv::imwrite( (rgbd_dir / (boost::format("depth%.2i.png")%save_counter).str()).string(), depth_mat);
-    cv::imwrite( (rgbd_dir / (boost::format("rgb%.2i.jpg")%save_counter).str()).string(), rgb_mat);
+    bool success1 = cv::imwrite( (rgbd_dir / (boost::format("depth%.2i.png")%save_counter).str()).string(), depth_mat);
+    bool success2 = cv::imwrite( (rgbd_dir / (boost::format("rgb%.2i.jpg")%save_counter).str()).string(), rgb_mat);
+    if (!success1 || !success2) throw std::runtime_error("failed to write image");
+    if (verbose) printf("saved rgb/depth images %i\n", save_counter);
+
+
     save_counter++;
+
+    frame_requested = false;
   }
 
   total_counter++;
@@ -56,6 +65,8 @@ int main(int argc, char** argv) {
 
   Config config;
   config.add(new Parameter<int>("downsample", &downsample, "ratio to downsample by"));
+  config.add(new Parameter<bool>("on_prompt", &wait_for_prompt, "only record image after user presses enter"));
+  config.add(new Parameter<bool>("verbose", &verbose, "verbose"));
   string outdir;
   config.add(new Parameter<string>("out", &outdir, "output directory"));
   CommandParser(config).read(argc, argv);
@@ -81,9 +92,18 @@ int main(int argc, char** argv) {
   cv::Size size(640, 480);
 
   interface.start();
-  printf("press ctrl-c to stop\n");
     
-  while (ros::ok()) usleep(1e6 * .01);
+  if (wait_for_prompt) {
+    while (ros::ok()) {
+      printf("press enter to acquire next frame\n");
+      cin.get();
+      frame_requested = true;
+    }
+  }
+  else {
+    printf("press ctrl-c to stop\n");
+    while (ros::ok()) usleep(1e6 * .01);
+  }
 
   interface.stop();
 
