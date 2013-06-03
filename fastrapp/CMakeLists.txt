@@ -33,7 +33,7 @@ link_directories(${PCL_LIBRARY_DIRS} ${OpenCV_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
 add_executable(record_rgbd_video record_rgbd_video.cpp config.cpp)
-target_link_libraries(record_rgbd_video ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} pcl_io ${ROS_LIBRARIES} boost_program_options)
+target_link_libraries(record_rgbd_video ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} ${ROS_LIBRARIES} boost_program_options)
 
 include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
 boost_python_module(fastrapp fastrapp.cpp)

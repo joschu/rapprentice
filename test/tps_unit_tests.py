@@ -164,7 +164,6 @@ if __name__ == "__main__":
     # tps.VERBOSE = True
     tps.ENABLE_SLOW_TESTS=True
     np.seterr(all='ignore')
-    # testing.test_all()
+    testing.test_all()
     # tps_regrot_with_quad_cost()
     # fitting_methods_equivalent()
-    for i in xrange(10):rot_reg_works()

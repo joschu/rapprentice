@@ -26,8 +26,9 @@ Dependencies:
 
 Build procedure:
 
-- manually build the ``rgbd_video`` subdirectory. This contains a program for recording an RGB+Depth video (from Primesense cameras). Manually edit ``record_demo.py`` to point to the executable.
-- add the rapprentice root directory to your ``PYTHONPATH``
+- Build the fastrapp subdirectory using the usual cmake procedure. This includes a boost python module with a few functions, and a program for recording RGB+Depth video (from Primesense cameras). Let's assume now that your build directory is ``fastrapp_build_dir``.
+- Add the rapprentice root directory and fastrapp_build_dir/lib to your ``PYTHONPATH``.
+- Add ``fastrapp_build_dir/bin`` to your $PATH.
    
 Training
 ================================================
@@ -76,9 +77,6 @@ Execution
   ./do_task.py h5file
   
 You can run this program in various simulation configurations that let you test your algorithm without using the robot.
-
-- By setting ``--exec_mode=fake`` you can execute the trajectories in OpenRAVE. Alternatively, you can leave ``--exec_mode=real`` (the default) but execute in Gazebo.
-- By setting ``--sensor_mode=fake`` and ``--fake_data_segment=segmentname`` you can make the program use RGBD images from the demonstration instead of live data. By specifying ``--fake_data_transform`` you can transform the fake data, so the algorithm will have to generate a new trajectory.
 
 
 Tips for debugging execution

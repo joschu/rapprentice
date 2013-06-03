@@ -1,3 +1,2 @@
-- program hangs if you do ctrl-c in the middle of trajectory
 - registration kinda sucks. parameters?
-- geometric mean trick in registration
+- allow user to separate raw data from yaml files and hdf5

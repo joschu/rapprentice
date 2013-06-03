@@ -3,21 +3,46 @@
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("h5file", type=str)
-parser.add_argument("--exec_mode",choices=["real","fake"], default="openrave")
-parser.add_argument("--sensor_mode",choices=["real","fake"], default="openrave")
-parser.add_argument("--fake_data_segment",type=str)
-parser.add_argument("--interactive",action="store_true")
 parser.add_argument("--cloud_proc_func", default="extract_red")
 parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
+    
+parser.add_argument("--execution", type=int, default=0)
+parser.add_argument("--animation", type=int, default=0)
+
+parser.add_argument("--fake_data_segment",type=str)
 parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),
     default=[0,0,0,0,0,0], help="translation=(tx,ty,tz), axis-angle rotation=(rx,ry,rz)")
+
+parser.add_argument("--interactive",action="store_true")
+
 args = parser.parse_args()
-if args.sensor_mode == "fake": assert args.fake_data_segment is not None
+
+if args.fake_data_segment is None: assert args.execution==1
+
 ###################
 
 
+"""
+Workflow:
+1. Fake data + animation only
+    --fake_data_segment=xxx --execution=0
+2. Fake data + Gazebo. Set Gazebo to initial state of fake data segment so we'll execute the same thing.
+    --fake_data_segment=xxx --execution=1
+    This is just so we know the robot won't do something stupid that we didn't catch with openrave only mode.
+3. Real data + Gazebo
+    --execution=1 
+    The problem is that the gazebo robot is in a different state from the real robot, in particular, the head tilt angle. TODO: write a script that       sets gazebo head to real robot head
+4. Real data + Real execution.
+    --execution=1
+
+The question is, do you update the robot's head transform.
+If you're using fake data, don't update it.
+
+"""
+
+
 from rapprentice import registration, colorize, berkeley_pr2, \
-     animate_traj, ros2rave, plotting_openrave
+     animate_traj, ros2rave, plotting_openrave, task_execution
 from rapprentice import pr2_trajectories, PR2
 import rospy
 
@@ -31,6 +56,8 @@ cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
     
 
+    
+    
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
     
@@ -137,15 +164,15 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     return traj         
     
 def set_gripper_maybesim(lr, value):
-    if args.exec_mode == "fake":
-        Globals.robot.SetDOFValues([value*5], [Globals.robot.GetJoint("%s_gripper_l_finger_joint"%lr).GetDOFIndex()])
-    else:
+    if args.execution:
         gripper = {"l":Globals.pr2.lgrip, "r":Globals.pr2.rgrip}[lr]
         gripper.set_angle(value)
         Globals.pr2.join_all()
+    else:
+        Globals.robot.SetDOFValues([value*5], [Globals.robot.GetJoint("%s_gripper_l_finger_joint"%lr).GetDOFIndex()])
         
 def exec_traj_maybesim(bodypart2traj):
-    if args.exec_mode == "fake":
+    if args.animation:
         dof_inds = []
         trajs = []
         for (part_name, traj) in bodypart2traj.items():
@@ -154,9 +181,10 @@ def exec_traj_maybesim(bodypart2traj):
             trajs.append(traj)
         full_traj = np.concatenate(trajs, axis=1)
         Globals.robot.SetActiveDOFs(dof_inds)
-        animate_traj.animate_traj(full_traj, Globals.robot, restore=False)
-    else:
+        animate_traj.animate_traj(full_traj, Globals.robot, restore=False,pause=True)
+    if args.execution:
         pr2_trajectories.follow_body_traj(Globals.pr2, bodypart2traj)
+
 
 
 def find_closest(demofile, new_xyz):
@@ -165,13 +193,8 @@ def find_closest(demofile, new_xyz):
     print "choose from the following options (type an integer)"
     for (i, seg_name) in enumerate(seg_names):
         print "%i: %s"%(i,seg_name)
-    while True:
-        try:
-            choice_ind = int(raw_input())
-            chosen_seg = seg_names[choice_ind] 
-            break
-        except (IndexError, ValueError):
-            print "invalid selection. try again"
+    choice_ind = task_execution.request_int_in_range(len(seg_names))
+    chosen_seg = seg_names[choice_ind] 
     return chosen_seg
             
             
@@ -196,39 +219,24 @@ class Globals:
 def main():
 
     demofile = h5py.File(args.h5file, 'r')
-
-
     
     trajoptpy.SetInteractive(args.interactive)
 
-
-    # TODO: load table
-    # TODO: torso
-
-
-
-    if args.exec_mode == "fake" and args.sensor_mode == "fake":
-        Globals.env = openravepy.Environment()
-        Globals.env.StopSimulation()
-        Globals.env.Load("robots/pr2-beta-static.zae")    
-        Globals.robot = Globals.env.GetRobots()[0]
-    else:
+    if args.execution:
         rospy.init_node("exec_task",disable_signals=True)
         Globals.pr2 = PR2.PR2()
         Globals.env = Globals.pr2.env
         Globals.robot = Globals.pr2.robot
-
-
-    if args.sensor_mode == "fake":
-        seg_info = demofile[args.fake_data_segment]    
-        r2r = ros2rave.RosToRave(Globals.robot, seg_info["joint_states"]["name"])
-        r2r.set_values(Globals.robot, seg_info["joint_states"]["position"][0])
+        
     else:
-        subprocess.call("killall XnSensorServer", shell=True)
+        Globals.env = openravepy.Environment()
+        Globals.env.StopSimulation()
+        Globals.env.Load("robots/pr2-beta-static.zae")    
+        Globals.robot = Globals.env.GetRobots()[0]
+
+    if not args.fake_data_segment:
         grabber = cloudprocpy.CloudGrabber()
         grabber.startRGBD()
-
-
 
     Globals.viewer = trajoptpy.GetViewer(Globals.env)
 
@@ -238,19 +246,20 @@ def main():
         
     
         redprint("Acquire point cloud")
-        if args.sensor_mode == "fake":
+        if args.fake_data_segment:
             new_xyz = np.squeeze(demofile[args.fake_data_segment]["cloud_xyz"])
             hmat = openravepy.matrixFromAxisAngle(args.fake_data_transform[3:6])
             hmat[:3,3] = args.fake_data_transform[0:3]
             new_xyz = new_xyz.dot(hmat[:3,:3].T) + hmat[:3,3][None,:]
-
+            
         else:
-            if args.exec_mode=="real": 
-                Globals.pr2.rarm.goto_posture('side')
-                Globals.pr2.larm.goto_posture('side')            
-                Globals.pr2.join_all()
-            if args.sensor_mode == "real":
-                Globals.pr2.update_rave()            
+            
+            Globals.pr2.rarm.goto_posture('side')
+            Globals.pr2.larm.goto_posture('side')            
+            Globals.pr2.join_all()
+            
+            Globals.pr2.update_rave()            
+            
             rgb, depth = grabber.getRGBD()
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
             new_xyz = cloud_proc_func(rgb, depth, T_w_k)
@@ -258,7 +267,7 @@ def main():
     
         ################################    
         redprint("Finding closest demonstration")
-        if args.sensor_mode == "fake":
+        if args.fake_data_segment:
             seg_name = args.fake_data_segment
         else:
             seg_name = find_closest(demofile, new_xyz)
@@ -303,7 +312,7 @@ def main():
         print colorize.colorize("mini segments:", "red"), miniseg_starts, miniseg_ends
         for (i_miniseg, (i_start, i_end)) in enumerate(zip(miniseg_starts, miniseg_ends)):
             
-            if args.sensor_mode=="real": Globals.pr2.update_rave()
+            if args.execution=="real": Globals.pr2.update_rave()
 
 
             ################################    
@@ -319,7 +328,7 @@ def main():
                 if arm_moved(old_joint_traj):          
                     ee_link_name = "%s_gripper_tool_frame"%lr
                     new_ee_traj = link2eetraj[ee_link_name]
-                    if args.sensor_mode=="real": Globals.pr2.update_rave()                    
+                    if args.execution: Globals.pr2.update_rave()                    
                     new_joint_traj = plan_follow_traj(Globals.robot, manip_name,
                      Globals.robot.GetLink(ee_link_name), new_ee_traj[i_start:i_end+1], 
                      old_joint_traj)
@@ -348,7 +357,7 @@ def main():
         redprint("Segment %s result: %s"%(seg_name, success))
     
     
-        if args.sensor_mode == "fake": break
+        if args.fake_data_segment: break
 
 
 main()

@@ -1,8 +1,9 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <pcl/point_types.h>
-#include <ros/ros.h>
 #include <pcl/io/openni_grabber.h>
+#define Header Header1   //holy shit this actually works
+#include <ros/ros.h>
 #include <opencv2/opencv.hpp>
 #include <fstream>
 #include <boost/filesystem.hpp>
