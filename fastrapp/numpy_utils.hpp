@@ -1,5 +1,8 @@
-
+#pragma once
+#include <boost/python.hpp>
+#include <vector>
 namespace py = boost::python;
+
 py::object np_mod; 
 
 py::list toPyList(const std::vector<int>& x) {

@@ -1,16 +1,84 @@
-#include <boost/python.hpp>
-#include <boost/foreach.hpp>
-#include <vector>
 #include "numpy_utils.hpp"
+#include <boost/foreach.hpp>
+#include <boost/python.hpp>
 #include <Eigen/Core>
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/SVD>
 #include <iostream>
+#include <iostream>
+#include <vector>
+
+
 using namespace Eigen;
 using namespace std;
-
 namespace py = boost::python;
 
-bool gInteractive = false;
-py::object openravepy;
+
+/////////////////
+
+
+
+
+// http://en.wikipedia.org/wiki/Axis_angle#Log_map_from_SO.283.29_to_so.283.29
+Vector3d LogMap(const Matrix3d& m) {
+  double cosarg = (m.trace() - 1)/2;
+  cosarg = fmin(cosarg, 1);
+  cosarg = fmax(cosarg, -1);
+  double theta = acos( cosarg );
+  if (theta==0) return Vector3d::Zero();
+  else return theta*(1/(2*sin(theta))) * Vector3d(m(2,1) - m(1,2), m(0,2)-m(2,0), m(1,0)-m(0,1));
+}
+
+double RotReg(const Matrix3d& b, const Vector3d& rot_coeffs, double scale_coeff) {
+  // regularize rotation using polar decomposition
+  JacobiSVD<Matrix3d> svd(b.transpose(), ComputeFullU | ComputeFullV);
+  Vector3d s = svd.singularValues();
+  if (b.determinant() <= 0) return INFINITY;
+  return LogMap(svd.matrixU() * svd.matrixV().transpose()).cwiseAbs().dot(rot_coeffs) + s.array().log().square().sum()*scale_coeff;
+}
+
+Matrix3d RotRegGrad(const Matrix3d& b, const Vector3d& rot_coeffs, double scale_coeff) {
+  Matrix3d out;
+  double y0 = RotReg(b, rot_coeffs, scale_coeff);
+  Matrix3d xpert = b;
+  double epsilon = 1e-5;
+  for (int i=0; i < 3; ++i) {
+    for (int j=0; j < 3; ++j) {
+      xpert(i,j) = b(i,j) + epsilon;
+      out(i,j) = (RotReg(xpert, rot_coeffs, scale_coeff) - y0)/epsilon;
+      xpert(i,j) = b(i,j);
+    }
+  }
+  return out;
+}
+
+Vector3d gRotCoeffs;
+double gScaleCoeff;
+
+void PySetCoeffs(py::object rot_coeffs, py::object scale_coeff) {
+  gRotCoeffs = Vector3d(py::extract<double>(rot_coeffs[0]), py::extract<double>(rot_coeffs[1]), py::extract<double>(rot_coeffs[2]));
+  gScaleCoeff = py::extract<double>(scale_coeff);
+}
+
+
+double PyRotReg(const py::object& m ){
+  const double* data = getPointer<double>(m);
+  return RotReg( Map< const Matrix<double,3,3,RowMajor> >(data), gRotCoeffs, gScaleCoeff);
+}
+
+py::object PyRotRegGrad(const py::object& m) {
+  static py::object np_mod = py::import("numpy");
+  py::object out = np_mod.attr("empty")(py::make_tuple(3,3));
+  const double* data = getPointer<double>(m);
+  Matrix<double,3,3,RowMajor> g = RotRegGrad( Map< const Matrix<double,3,3,RowMajor> >(data), gRotCoeffs, gScaleCoeff);
+  memcpy(getPointer<double>(out), g.data(), sizeof(double)*9);
+  return out;
+}
+
+
+
+////////////////
 
 void Interp(float x0, float x1, const VectorXf& y0, const VectorXf& y1, const VectorXf& newxs, MatrixXf& newys) {
   float dx = x1 - x0;
@@ -83,10 +151,18 @@ py::object pyResample(py::object x, py::object t, float max_err, float max_dx, f
 }
 //BOOST_PYTHON_FUNCTION_OVERLOADS(resample_overloads, pyResample, 3, 5);
 
+///////////////////
+
+
 BOOST_PYTHON_MODULE(fastrapp) {
 
   np_mod = py::import("numpy");
 
-  py::def("resample", &pyResample, (py::arg("x"), py::arg("t"), py::arg("max_err"), py::arg("max_dx")=INFINITY, py::arg("max_dt")=INFINITY));
+  py::def("resample", &pyResample, (py::arg("x"), py::arg("t"), py::arg("max_err"),   py::arg("max_dx")=INFINITY, py::arg("max_dt")=INFINITY));
+  
+  py::def("set_coeffs", &PySetCoeffs, (py::arg("rot_coeffs"), py::arg("scale_coeff")));
+  py::def("rot_reg", &PyRotReg, (py::arg("B")));
+  py::def("rot_reg_grad", &PyRotRegGrad, (py::arg("B")));
+  
 
 }

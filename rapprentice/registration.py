@@ -108,6 +108,16 @@ def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
     f.x_na = x_na
     return f        
 
+def fit_ThinPlateSpline_RotReg(x_na, y_ng, bend_coef = .1, rot_coefs = (0.01,0.01,0.0025),scale_coef=.01):
+    import fastrapp
+    f = ThinPlateSpline()
+    rfunc = fastrapp.rot_reg
+    fastrapp.set_coeffs(rot_coefs, scale_coef)
+    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit_regrot(x_na, y_ng, bend_coef, rfunc)
+    f.x_na = x_na
+    return f        
+    
+    
 
 def loglinspace(a,b,n):
     "n numbers between a to b (inclusive) with constant ratio between consecutive numbers"

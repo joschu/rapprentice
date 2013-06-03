@@ -4,6 +4,7 @@ import numpy as np
 
 @testing.testme
 def nonrigidity_gradient():
+    import numdifftools as ndt
     D = 3
     pts0 = np.random.randn(10,D)
     pts_eval = np.random.randn(3,D)
@@ -56,7 +57,7 @@ def fitting_methods_equivalent():
     assert np.allclose(w2_ng, w3_ng)
 
 
-@testing.testme
+# @testing.testme
 def check_that_nr_fit_runs():
     from jds_image_proc.clouds import voxel_downsample
     #from brett2.ros_utils import RvizWrapper    
@@ -146,11 +147,24 @@ def tps_regrot_with_quad_cost():
     assert np.allclose(correct_lin_ag, lin_ag, atol=1e-2)
     assert np.allclose(correct_w_ng, w_ng,atol=1e-2)
     
+@testing.testme
+def rot_reg_works():
+    from numpy import sin,cos
+    from rapprentice import registration
+    import fastrapp
+    x = np.random.randn(100,3)
+    a = .1
+    R = np.array([[cos(a), sin(a),0],[-sin(a), cos(a), 0],[0,0,1]])
+    y = x.dot(R.T)
+    f = registration.fit_ThinPlateSpline_RotReg(x, y, bend_coef = .1, rot_coefs = [.1,.1,0], scale_coef = 1)
+    assert np.allclose(R.T, f.lin_ag, atol = 1e-4)
+    
 
 if __name__ == "__main__":
-    tps.VERBOSE = True
+    # tps.VERBOSE = True
     tps.ENABLE_SLOW_TESTS=True
     np.seterr(all='ignore')
-    ##testing.test_all()
+    # testing.test_all()
     # tps_regrot_with_quad_cost()
-    fitting_methods_equivalent()
+    # fitting_methods_equivalent()
+    for i in xrange(10):rot_reg_works()
