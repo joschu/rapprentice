@@ -49,12 +49,14 @@ for (i_bag, bag_info) in enumerate(bag_infos):
     bag_file = osp.join(task_dir, bag_info["bag_file"])
     ann_file = osp.join(task_dir, bag_info["annotation_file"])
     video_dir = bag_info["video_dir"]
+
+    demo_name = bag_info["demo_name"] if "demo_name" in bag_info else "demo%i"%i_bag
     
     bag = rosbag.Bag(bag_file)
     with open(ann_file, "r") as fh: annotations = yaml.load(fh)
     
-    bag_proc.add_bag_to_hdf(bag, annotations, hdf, bag_info["demo_name"])
-    bag_proc.add_rgbd_to_hdf(osp.join(task_dir, video_dir), annotations, hdf, bag_info["demo_name"])
+    bag_proc.add_bag_to_hdf(bag, annotations, hdf, demo_name)
+    bag_proc.add_rgbd_to_hdf(osp.join(task_dir, video_dir), annotations, hdf, demo_name)
     
     
 
