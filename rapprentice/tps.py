@@ -124,27 +124,34 @@ def tps_nr_cost_eval_general(lin_ag, trans_g, w_eg, x_ea, y_ng, nr_ma, bend_coef
     else:
         return res_cost + bend_cost + nr_cost    
 
-
-def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
+def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None, K_nn = None):
     N,D = x_na.shape
         
     # XXX wt not used
-    K_nn = ssd.squareform(ssd.pdist(x_na))
+    K_nn = ssd.squareform(ssd.pdist(x_na)) if K_nn is None else K_nn
     coef_ratio = bend_coef / rot_coef if rot_coef > 0 else 0
     #if wt_n is None: reg_nn = bend_coef * np.eye(N)    
     #else: reg_nn = np.diag(bend_coef/(wt_n + 1e-6))
     #print wt_n
-    reg_nn = bend_coef * np.eye(N)
     
-    A = np.r_[
-        np.c_[K_nn - reg_nn,   x_na,    np.ones((N,1))],
-        np.c_[x_na.T,      coef_ratio * np.eye(D), np.zeros((D,1))],
-        np.c_[np.ones((1,N)),     np.zeros((1,D)), 0]]
-    B = np.r_[
-        y_ng,
-        coef_ratio * np.eye(D),
-        np.zeros((1, D))
-    ]
+    A = np.empty((N+D+1, N+D+1))
+    
+    A[:N, :N] = K_nn
+
+    A.flat[np.arange(0,N)*(N+D+2)] -= bend_coef/(wt_n if wt_n is not None else 1)
+
+    A[:N, N:N+D] = x_na
+    A[:N, N+D] = 1
+
+    A[N:N+D,:N] = x_na.T
+    A[N+D,:N] = 1
+    
+    A[N:, N:] = 0
+    
+    B = np.empty((N+D+1, D))
+    B[:N] = y_ng
+    B[N:N+D] = coef_ratio*np.eye(D)
+    B[N+D] = 0
     
     X = np.linalg.solve(A, B)
     w_ng = X[:N,:]
@@ -152,13 +159,8 @@ def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
     trans_g = X[N+D,:]
     return lin_ag, trans_g, w_ng
     
-    
-"""
-Note: we can massively speed this up for repeated solving:
-- only need to compute QWQ  once
-- only need to do svd(A) once
-- 
-"""    
+
+
     
 def solve_eqp1(H, f, A):
     """solve equality-constrained qp
@@ -207,6 +209,54 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     return Theta[1:4], Theta[0], Theta[4:]
     
     
+def chol_solve(Al, B):
+    """
+    solve Al*Al' x = B
+    """
+    AlinvB = slinalg.solve_triangular(Al, B, lower=True)
+    AinvB = slinalg.solve_triangular(Al.T, AlinvB)
+    return AinvB
+        
+        
+def tps_fit4(x_na, y_ng, bend_coef, wt_n = None, cache = None):
+
+    if wt_n is None: wt_n = np.ones(len(x_na))
+
+    N,D = x_na.shape
+    assert D == 3
+    # assert bend_coef ==0
+
+    if cache is None: cache = {}
+    if len(cache)==0:
+
+        h_nA = np.ones((N,4))
+        h_nA[:,1:4] = x_na
+        
+        K_nn = cache["K_nn"] = -ssd.squareform(ssd.pdist(x_na))
+        U,S,V = np.linalg.svd(h_nA)
+        SV = cache["SV"] = np.diag(S).dot(V)
+        P_nA = cache["P_nA"] = U[:,:4]
+        Q_nq = cache["Q_nq"] = U[:,4:]        
+        QKQ_qq = cache["QKQ_qq"] = Q_nq.T.dot(K_nn).dot(Q_nq)
+        # qkq, qnq, sv, pna, knn
+    else:
+        K_nn = cache["K_nn"]
+        SV = cache["SV"]
+        P_nA = cache["P_nA"]
+        Q_nq = cache["Q_nq"]
+        QKQ_qq = cache["QKQ_qq"]
+        
+    Q_nq.T.dot(Q_nq)
+    L = bend_coef/(wt_n[:,None]) * Q_nq
+    L = Q_nq.T.dot(L)
+    # shit realized we've gotta do QWKQ to make it robust to W being singular
+    Qy = Q_nq.T.dot(y_ng)
+    tmp = np.linalg.solve( QKQ_qq + L, Qy)
+    w_ng = Q_nq.dot(tmp)
+
+    lt_Ag = np.linalg.solve(SV, P_nA.T.dot(y_ng - K_nn.dot(w_ng)))
+    
+    return lt_Ag[1:4,:], lt_Ag[0,:], -w_ng
     
     
     
@@ -453,19 +503,19 @@ def tps_fit_fixedrot(x_na, y_ng, bend_coef, lin_ag, K_nn = None, wt_n=None):
     return trans_g, w_ng
     
 
-def tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 10, inner_max_iter=100, rgrad=None, l_init=None):
+def tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 1, inner_max_iter=100, rgrad=None, l_init=None):
     """
     minimize (Y-KA-XB-1C)' W (Y-KA-XB-1C) + tr(A'KA) + r(B)
     subject to A'(X 1) = 0
     """
     
+
+
+    N,D = x_na.shape
     K_nn = ssd.squareform(ssd.pdist(x_na))
-    N,_ = x_na.shape
-    
-    if wt_n is not None: print "warning: wt_n specified but not used"
     # initialize with tps_fit and small rotation regularization
     if l_init is None: 
-        lin_ag, trans_g, w_ng = tps_fit2(x_na, y_ng, bend_coef, .01, wt_n)
+        lin_ag, trans_g, w_ng = tps_fit3(x_na, y_ng, bend_coef, .01, wt_n)
     else:
         lin_ag = l_init
         if True: print "initializing rotation with\n ",lin_ag

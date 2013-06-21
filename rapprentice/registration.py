@@ -57,6 +57,7 @@ class Transformation(object):
         hmat_mGD = np.empty_like(hmat_mAD)
         hmat_mGD[:,:3,3] = self.transform_points(hmat_mAD[:,:3,3])
         hmat_mGD[:,:3,:3] = self.transform_bases(hmat_mAD[:,:3,3], hmat_mAD[:,:3,:3])
+        hmat_mgd[:,3,:] = np.array([0,0,0,1])
         return hmat_mGD
         
     def compute_numerical_jacobian(self, x_d, epsilon=0.0001):
@@ -104,7 +105,7 @@ def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
     wt_n: weight the points        
     """
     f = ThinPlateSpline()
-    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n)
+    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n)
     f.x_na = x_na
     return f        
 
@@ -143,7 +144,7 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
     for i in xrange(n_iter):
         xwarped_nd = f.transform_points(x_nd)
         # targ_nd = find_targets(x_nd, y_md, corr_opts = dict(r = rads[i], p = .1))
-        corr_nm = calc_correspondence_matrix(xwarped_nd, y_md, r=rads[i], p=.2)
+        corr_nm = calc_correspondence_matrix(xwarped_nd, y_md, r=rads[i], p=.2, ratio_err_tol=1e-2,max_iter=10)
 
         wt_n = corr_nm.sum(axis=1)
 
@@ -259,22 +260,93 @@ def find_targets(x_md, y_nd, corr_opts):
     # corr_mn = corr_mn / corr_mn.sum(axis=1)[:,None]
     return np.dot(corr_mn, y_nd)        
 
-def calc_correspondence_matrix(x_nd, y_md, r, p, n_iter=20):
+# @profile
+def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
     """
     sinkhorn procedure. see tps-rpm paper
-    TODO ask jonathan about geometric mean hack
     """
     n = x_nd.shape[0]
     m = y_md.shape[0]
     dist_nm = ssd.cdist(x_nd, y_md,'euclidean')
     prob_nm = np.exp(-dist_nm / r)
     prob_nm_orig = prob_nm.copy()
-    for _ in xrange(n_iter):
-        prob_nm /= (p*((n+0.)/m) + prob_nm.sum(axis=0))[None,:]  # cols sum to n/m
-        prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
+    pnoverm = (float(p)*float(n)/float(m))
+    for _ in xrange(max_iter):
+        colsums = pnoverm + prob_nm.sum(axis=0)        
+        prob_nm /=  + colsums[None,:]
+        rowsums = p + prob_nm.sum(axis=1)
+        prob_nm /= rowsums[:,None]
+        
+        if ((rowsums-1).__abs__() < ratio_err_tol).all() and ((colsums-1).__abs__() < ratio_err_tol).all():
+            break
 
     prob_nm = np.sqrt(prob_nm_orig * prob_nm)
     prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
+
+    return prob_nm
+    
+def calc_correspondence_matrix2(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
+    from scipy.weave import inline
+    code = """
+    int N,D,M,i,n,m;
+    double dev;
+    
+    N = Nx_nd[0];
+    D = Nx_nd[1];
+    M = Ny_md[0];
+
+    for (i=0; i < max_iter; ++i) {
+
+
+        for (m=0; m < M; ++m) COLSUMS1(m) = ((float)p*N)/M;
+        for (n=0; n < N; ++n) {
+            for (m=0; m < M; ++m) {
+                COLSUMS1(m) += PROB_NM2(n,m);
+            }            
+        }
+        
+        
+        for (n=0; n < N; ++n) {
+            for (m=0; m < M; ++m) {
+                PROB_NM2(n,m) /= COLSUMS1(m);
+            }            
+        }
+        
+        for (n=0; n < N; ++n) rowsums[n] = p;
+        for (n=0; n < N; ++n) {
+            for (m=0; m < M; ++m) {
+                ROWSUMS1(n) += PROB_NM2(n,m);
+            }            
+        }
+        for (n=0; n < N; ++n) {
+            for (m=0; m < M; ++m) {
+                PROB_NM2(n,m) /= ROWSUMS1(n);
+            }            
+        }
+        
+        dev=0; 
+        for (int n=0; n < N; ++n) dev=fmax(dev, fabs(ROWSUMS1(n)-1));
+        for (int m=0; m < M; ++m) dev=fmax(dev, fabs(COLSUMS1(m)-1));
+        if (dev < ratio_err_tol) {
+//            printf("done after %i iters\\n",i);
+            break;
+        }
+        
+    }
+    
+
+    """
+    dist_nm = ssd.cdist(x_nd, y_md,'euclidean')
+    prob_nm = np.exp(-dist_nm / r)
+    rowsums = np.zeros(dist_nm.shape[0])
+    colsums = np.zeros(dist_nm.shape[1])
+    p = float(p)
+    prob_nm_orig = prob_nm.copy()    
+    inline(code,["x_nd","y_md","rowsums","colsums","prob_nm","p","max_iter","ratio_err_tol"])
+
+    prob_nm = np.sqrt(prob_nm_orig * prob_nm)
+    prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
+    
     return prob_nm
 
 def nan2zero(x):

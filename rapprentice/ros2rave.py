@@ -16,6 +16,5 @@ class RosToRave(object):
         return [ros_values[i_ros] for i_ros in self.good_ros_inds]
     def set_values(self, robot, ros_values):
         rave_values = [ros_values[i_ros] for i_ros in self.good_ros_inds]        
-        robot.SetJointValues(rave_values[:20],self.rave_inds[:20])
-        robot.SetJointValues(rave_values[20:],self.rave_inds[20:])          
+        robot.SetDOFValues(rave_values,self.rave_inds, 0)
         

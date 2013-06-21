@@ -27,4 +27,5 @@ print seg_infos
 print "writing to %s"%args.outfile
 with open(args.outfile,"w") as fh:
     yaml.dump(seg_infos,fh)
+print "done"
     

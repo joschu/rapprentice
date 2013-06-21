@@ -35,22 +35,28 @@ def jacobian_of_tps():
 
 @testing.testme
 def fitting_methods_equivalent():
-    pts0 = np.random.randn(100,3)
-    pts1 = np.random.randn(100,3)
-    lin_ag, trans_g, w_ng = tps.tps_fit(pts0, pts1, .01, 0)    
-    lin2_ag, trans2_g, w2_ng = tps.tps_fit2(pts0, pts1, .01, 0)
-    lin3_ag, trans3_g, w3_ng = tps.tps_fit3(pts0, pts1, .01, 0, np.ones(len(pts0)))
+    pts0 = np.random.randn(200,3)
+    pts1 = np.random.randn(200,3)
+    bend_coef = 13
+    lin_ag, trans_g, w_ng = tps.tps_fit(pts0, pts1, bend_coef, 0)    
+    lin2_ag, trans2_g, w2_ng = tps.tps_fit2(pts0, pts1, bend_coef, 0)
+    lin3_ag, trans3_g, w3_ng = tps.tps_fit3(pts0, pts1, bend_coef, 0, np.ones(len(pts0)))
+    lin4_ag, trans4_g, w4_ng = tps.tps_fit4(pts0, pts1, bend_coef)
+
     assert np.allclose(lin_ag, lin2_ag)
     assert np.allclose(trans_g, trans2_g)
     assert np.allclose(w_ng, w2_ng)
-
 
     assert np.allclose(lin_ag, lin3_ag)
     assert np.allclose(trans_g, trans3_g)
     assert np.allclose(w_ng, w3_ng)
 
-    lin2_ag, trans2_g, w2_ng = tps.tps_fit2(pts0, pts1, .01, .01)
-    lin3_ag, trans3_g, w3_ng = tps.tps_fit3(pts0, pts1, .01, .01, np.ones(len(pts0)))
+    assert np.allclose(lin_ag, lin4_ag)
+    assert np.allclose(trans_g, trans4_g)
+    assert np.allclose(w_ng, w4_ng)
+
+    lin2_ag, trans2_g, w2_ng = tps.tps_fit2(pts0, pts1, bend_coef, .01)
+    lin3_ag, trans3_g, w3_ng = tps.tps_fit3(pts0, pts1, bend_coef, .01, np.ones(len(pts0)))
 
     assert np.allclose(lin2_ag, lin3_ag)
     assert np.allclose(trans2_g, trans3_g)
@@ -139,10 +145,11 @@ def tps_regrot_with_quad_cost():
     y_ng = np.random.randn(100,3)
     bend_coef = .1
     rot_coef = 19
+    wt_n = np.random.rand(len(x_na))
     def rfunc(b):
         return rot_coef*((b - np.eye(3))**2).sum()
-    correct_lin_ag, correct_trans_g, correct_w_ng = tps.tps_fit2(x_na, y_ng, bend_coef, rot_coef)
-    lin_ag, trans_g, w_ng = tps.tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, max_iter=20)
+    correct_lin_ag, correct_trans_g, correct_w_ng = tps.tps_fit2(x_na, y_ng, bend_coef, rot_coef, wt_n)
+    lin_ag, trans_g, w_ng = tps.tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n, max_iter=30)
     assert np.allclose(correct_trans_g, trans_g, atol=1e-2)    
     assert np.allclose(correct_lin_ag, lin_ag, atol=1e-2)
     assert np.allclose(correct_w_ng, w_ng,atol=1e-2)

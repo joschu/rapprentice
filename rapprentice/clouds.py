@@ -2,10 +2,19 @@ import numpy as np
 
 cx = 320-.5;
 cy = 240-.5;
+DEFAULT_F = 535.
 
+def xyZ_to_XY(x,y,Z,f=DEFAULT_F):
+    X = (x - cx)*(Z/f)
+    Y = (y - cy)*(Z/f)
+    return (X,Y)
 
+def XYZ_to_xy(X,Y,Z,f=DEFAULT_F):
+    x = X*(f/Z) + cx
+    y = Y*(f/Z) + cy
+    return (x,y)
 
-def depth_to_xyz(depth,f=535.):
+def depth_to_xyz(depth,f=DEFAULT_F):
     x,y = np.meshgrid(np.arange(640), np.arange(480))
     assert depth.shape == (480, 640)
     XYZ = np.empty((480,640,3))

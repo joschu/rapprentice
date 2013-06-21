@@ -14,7 +14,7 @@ parser.add_argument("--nopause", action="store_true")
 args = parser.parse_args()
 
 import h5py, openravepy,trajoptpy
-from rapprentice import animate_traj, ros2rave
+from rapprentice import animate_traj, ros2rave,clouds
 from numpy import asarray
 import numpy as np
 
@@ -54,7 +54,15 @@ for segname in segnames:
     handles.append(env.drawarrow(o, o+.3*z, .005,(0,0,1,1)))
     
     cloud_xyz = np.squeeze(seg_info["cloud_xyz"])
-    handles.append(env.plot3(cloud_xyz,5))
+    #handles.append(env.plot3(cloud_xyz,5,[1,0,0]))
+
+    XYZ_k = clouds.depth_to_xyz(np.asarray(seg_info["depth"]), berkeley_pr2.f)
+    Twk = asarray(seg_info["T_w_k"])
+    XYZ_w = XYZ_k.dot(Twk[:3,:3].T) + Twk[:3,3][None,None,:]
+    RGB = np.asarray(seg_info["rgb"])
+    handles.append(env.plot3(XYZ_w.reshape(-1,3), 2,  RGB.reshape(-1,3)[:,::-1]/255.))
+
+
     
     animate_traj.animate_traj(rave_traj, robot, pause = not args.nopause)
     
