@@ -105,7 +105,7 @@ def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
     wt_n: weight the points        
     """
     f = ThinPlateSpline()
-    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n)
+    f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n)
     f.x_na = x_na
     return f        
 
@@ -260,7 +260,6 @@ def find_targets(x_md, y_nd, corr_opts):
     # corr_mn = corr_mn / corr_mn.sum(axis=1)[:,None]
     return np.dot(corr_mn, y_nd)        
 
-# @profile
 def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
     """
     sinkhorn procedure. see tps-rpm paper

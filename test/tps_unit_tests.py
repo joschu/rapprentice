@@ -41,7 +41,6 @@ def fitting_methods_equivalent():
     lin_ag, trans_g, w_ng = tps.tps_fit(pts0, pts1, bend_coef, 0)    
     lin2_ag, trans2_g, w2_ng = tps.tps_fit2(pts0, pts1, bend_coef, 0)
     lin3_ag, trans3_g, w3_ng = tps.tps_fit3(pts0, pts1, bend_coef, 0, np.ones(len(pts0)))
-    lin4_ag, trans4_g, w4_ng = tps.tps_fit4(pts0, pts1, bend_coef)
 
     assert np.allclose(lin_ag, lin2_ag)
     assert np.allclose(trans_g, trans2_g)
@@ -51,9 +50,6 @@ def fitting_methods_equivalent():
     assert np.allclose(trans_g, trans3_g)
     assert np.allclose(w_ng, w3_ng)
 
-    assert np.allclose(lin_ag, lin4_ag)
-    assert np.allclose(trans_g, trans4_g)
-    assert np.allclose(w_ng, w4_ng)
 
     lin2_ag, trans2_g, w2_ng = tps.tps_fit2(pts0, pts1, bend_coef, .01)
     lin3_ag, trans3_g, w3_ng = tps.tps_fit3(pts0, pts1, bend_coef, .01, np.ones(len(pts0)))

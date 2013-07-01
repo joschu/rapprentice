@@ -15,7 +15,7 @@ ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 .PHONY: help clean html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex latexpdf text man changes linkcheck doctest
 
 upload:
-	rsync -azvu --delete  ./ pabbeel@rll.berkeley.edu:/var/www/rapprentice/doc/
+	rsync -azvu --delete --progress ./ pabbeel@rll.berkeley.edu:/var/www/rapprentice/doc/
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"

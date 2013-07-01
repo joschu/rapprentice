@@ -209,54 +209,6 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     return Theta[1:4], Theta[0], Theta[4:]
     
     
-def chol_solve(Al, B):
-    """
-    solve Al*Al' x = B
-    """
-    AlinvB = slinalg.solve_triangular(Al, B, lower=True)
-    AinvB = slinalg.solve_triangular(Al.T, AlinvB)
-    return AinvB
-        
-        
-def tps_fit4(x_na, y_ng, bend_coef, wt_n = None, cache = None):
-
-    if wt_n is None: wt_n = np.ones(len(x_na))
-
-    N,D = x_na.shape
-    assert D == 3
-    # assert bend_coef ==0
-
-    if cache is None: cache = {}
-    if len(cache)==0:
-
-        h_nA = np.ones((N,4))
-        h_nA[:,1:4] = x_na
-        
-        K_nn = cache["K_nn"] = -ssd.squareform(ssd.pdist(x_na))
-        U,S,V = np.linalg.svd(h_nA)
-        SV = cache["SV"] = np.diag(S).dot(V)
-        P_nA = cache["P_nA"] = U[:,:4]
-        Q_nq = cache["Q_nq"] = U[:,4:]        
-        QKQ_qq = cache["QKQ_qq"] = Q_nq.T.dot(K_nn).dot(Q_nq)
-        # qkq, qnq, sv, pna, knn
-    else:
-        K_nn = cache["K_nn"]
-        SV = cache["SV"]
-        P_nA = cache["P_nA"]
-        Q_nq = cache["Q_nq"]
-        QKQ_qq = cache["QKQ_qq"]
-        
-    Q_nq.T.dot(Q_nq)
-    L = bend_coef/(wt_n[:,None]) * Q_nq
-    L = Q_nq.T.dot(L)
-    # shit realized we've gotta do QWKQ to make it robust to W being singular
-    Qy = Q_nq.T.dot(y_ng)
-    tmp = np.linalg.solve( QKQ_qq + L, Qy)
-    w_ng = Q_nq.dot(tmp)
-
-    lt_Ag = np.linalg.solve(SV, P_nA.T.dot(y_ng - K_nn.dot(w_ng)))
-    
-    return lt_Ag[1:4,:], lt_Ag[0,:], -w_ng
     
     
     
