@@ -1,7 +1,7 @@
 """
 Plotting functions using matplotlib
 """
-
+import numpy as np
 def plot_warped_grid_2d(f, mins, maxes, grid_res=None, flipax = True):
     import matplotlib.pyplot as plt
     import matplotlib

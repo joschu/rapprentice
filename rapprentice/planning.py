@@ -26,7 +26,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         },
         {
             "type" : "collision",
-            "params" : {"coeffs" : [10],"dist_pen" : [0.005]}
+            "params" : {"coeffs" : [10],"dist_pen" : [0.01]}
         }                
         ],
         "constraints" : [
@@ -39,15 +39,15 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         
     poses = [openravepy.poseFromMatrix(hmat) for hmat in new_hmats]
     for (i_step,pose) in enumerate(poses):
-        request["constraints"].append(
+        request["costs"].append(
             {"type":"pose",
              "params":{
                 "xyz":pose[4:7].tolist(),
                 "wxyz":pose[0:4].tolist(),
                 "link":ee_linkname,
                 "timestep":i_step,
-                "pos_coeffs":[20,20,20],
-                "rot_coeffs":[20,20,20]
+                "pos_coeffs":[2,2,2],
+                "rot_coeffs":[5,5,5]
              }
             })
 

@@ -119,18 +119,19 @@ def tps_fit_is_minimizer():
     """
     x_na = np.random.randn(100,3)
     y_ng = np.random.randn(100,3)
-    bend_coef = .1
+    bend_coef = 10
     lin_ag = np.random.randn(3,3)
     trans_g, w_ng = tps.tps_fit_fixedrot(x_na, y_ng, bend_coef, lin_ag)
     hopefully_min_cost = tps.tps_cost(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef)
     
     n_tries = 50
     other_costs = np.empty(n_tries)
+    N = len(x_na)
+    _u,_s,_vh = np.linalg.svd(np.c_[x_na, np.ones((N,1))], full_matrices=True)
     for i in xrange(n_tries):
-        N = len(x_na)
-        _u,_s,_vh = np.linalg.svd(np.c_[x_na, np.ones((N,1))], full_matrices=True)
         pert = .01*_u[:,4:].dot(np.random.randn(N-4,3))
         assert np.allclose(x_na.T.dot(pert),np.zeros((3,3)))
+        assert np.allclose(pert.sum(axis=0),np.zeros(3))
         other_costs[i] = tps.tps_cost(lin_ag, trans_g, w_ng+pert, x_na, y_ng, bend_coef)
     assert (other_costs > hopefully_min_cost).all()
         
@@ -139,7 +140,7 @@ def tps_fit_is_minimizer():
 def tps_regrot_with_quad_cost():
     x_na = np.random.randn(100,3)
     y_ng = np.random.randn(100,3)
-    bend_coef = .1
+    bend_coef = 10
     rot_coef = 19
     wt_n = np.random.rand(len(x_na))
     def rfunc(b):

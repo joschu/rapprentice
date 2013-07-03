@@ -11,9 +11,33 @@ from rapprentice.colorize import colorize
 VERBOSE = False
 ENABLE_SLOW_TESTS = False
 
+
+def nan2zero(x):
+    np.putmask(x, np.isnan(x), 0)
+    return x
+
+
 def tps_apply_kernel(distmat, dim):
-    if dim==2:
-        return distmat**2 * np.log(distmat)
+    """
+    if d=2: 
+        k(r) = 4 * r^2 log(r)
+       d=3:
+        k(r) = -r
+            
+    import numpy as np, scipy.spatial.distance as ssd
+    x = np.random.rand(100,2)
+    d=ssd.squareform(ssd.pdist(x))
+    print np.clip(np.linalg.eigvalsh( 4 * d**2 * log(d+1e-9) ),0,inf).mean()
+    print np.clip(np.linalg.eigvalsh(-d),0,inf).mean()
+    
+    Note the actual coefficients (from http://www.geometrictools.com/Documentation/ThinPlateSplines.pdf)
+    d=2: 1/(8*sqrt(pi)) = 0.070523697943469535
+    d=3: gamma(-.5)/(16*pi**1.5) = -0.039284682964880184
+    """
+
+    if dim==2:       
+        return 4 * distmat**2 * np.log(distmat+1e-20)
+        
     elif dim ==3:
         return -distmat
     else:
@@ -29,10 +53,6 @@ def tps_kernel_matrix2(x_na, y_ma):
     dim = x_na.shape[1]
     distmat = ssd.cdist(x_na, y_ma)
     return tps_apply_kernel(distmat, dim)
-
-def nan2zero(x):
-    np.putmask(x, np.isnan(x), 0)
-    return x
 
 def tps_eval(x_ma, lin_ag, trans_g, w_ng, x_na):
     K_mn = tps_kernel_matrix2(x_ma, x_na)
@@ -108,7 +128,7 @@ def tps_cost(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef, K_nn=None, return_tup
     if K_nn is None: K_nn = tps_kernel_matrix(x_na)
     ypred_ng = np.dot(K_nn, w_ng) + np.dot(x_na, lin_ag) + trans_g[None,:]
     res_cost = ((ypred_ng - y_ng)**2).sum()
-    bend_cost = bend_coef * sum(np.dot(w_ng[:,g], np.dot(-K_nn, w_ng[:,g])) for g in xrange(D))
+    bend_cost = bend_coef * sum(np.dot(w_ng[:,g], np.dot(K_nn, w_ng[:,g])) for g in xrange(D))
     if return_tuple:
         return res_cost, bend_cost, res_cost + bend_cost
     else:
@@ -155,7 +175,7 @@ def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None, K_nn = None):
     #else: reg_nn = np.diag(bend_coef/(wt_n + 1e-6))
     #print wt_n
     
-    A = np.empty((N+D+1, N+D+1))
+    A = np.zeros((N+D+1, N+D+1))
     
     A[:N, :N] = K_nn
 
@@ -167,7 +187,7 @@ def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None, K_nn = None):
     A[N:N+D,:N] = x_na.T
     A[N+D,:N] = 1
     
-    A[N:, N:] = 0
+    A[N:N+D, N:N+D] = coef_ratio*np.eye(D)
     
     B = np.empty((N+D+1, D))
     B[:N] = y_ng
@@ -211,23 +231,23 @@ def solve_eqp1(H, f, A):
 def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
-    assert d == 3
+
     K_nn = tps_kernel_matrix(x_na)
     Q = np.c_[np.ones((n,1)), x_na, K_nn]
     WQ = wt_n[:,None] * Q
     QWQ = Q.T.dot(WQ)
     H = QWQ
-    H[4:,4:] += bend_coef * K_nn # -K_nn is conditionally positive definite (CPD)
-    H[1:4, 1:4] += rot_coef * np.eye(3)
+    H[d+1:,d+1:] += bend_coef * K_nn
+    H[1:d+1, 1:d+1] += rot_coef * np.eye(d)
     
     f = -WQ.T.dot(y_ng)
-    f[1:4,0:3] -= rot_coef * np.eye(3)
+    f[1:d+1,0:d] -= rot_coef * np.eye(d)
     
-    A = np.r_[np.zeros((4,4)), np.c_[np.ones((n,1)), x_na]].T
+    A = np.r_[np.zeros((d+1,d+1)), np.c_[np.ones((n,1)), x_na]].T
     
     Theta = solve_eqp1(H,f,A)
     
-    return Theta[1:4], Theta[0], Theta[4:]
+    return Theta[1:d+1], Theta[0], Theta[d+1:]
     
     
     

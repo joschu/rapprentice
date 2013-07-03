@@ -10,10 +10,13 @@ args = parser.parse_args()
 import subprocess,os
 import os.path as osp
 import rapprentice
-os.chdir(args.sampledata_dir)
+print "cding to %s"%osp.dirname(args.sampledata_dir)
+os.chdir(osp.dirname(args.sampledata_dir))
 
-print "creating zip file"
-subprocess.check_call('tar cvf all.tar . --exclude all.tar',shell=True)
+
+print "creating tar file"
+subprocess.check_call('tar cvf sampledata.tar sampledata',shell=True)
 print "uploading"            
-subprocess.check_call("rsync -azvu %s ./ pabbeel@rll.berkeley.edu:/var/www/rapprentice/sampledata"%("--delete" if args.delete else ""), shell=True)
+subprocess.check_call("rsync -azvu --progress %s sampledata pabbeel@rll.berkeley.edu:/var/www/rapprentice"%("--delete" if args.delete else ""), shell=True)
+subprocess.check_call("rsync -azvu --progress %s sampledata.tar pabbeel@rll.berkeley.edu:/var/www/rapprentice"%("--delete" if args.delete else ""), shell=True)
             

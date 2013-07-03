@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 
 import argparse
-parser = argparse.ArgumentParser()
+usage="""
+Usage examples:
+./do_task.py ~/Data/overhand2/master.h5 --fake_data_segment=demo1-seg01 --execution=0  --animation=1
+
+
+"""
+parser = argparse.ArgumentParser(usage=usage)
 parser.add_argument("h5file", type=str)
 parser.add_argument("--cloud_proc_func", default="extract_red")
 parser.add_argument("--cloud_proc_mod", default="rapprentice.cloud_proc_funcs")
@@ -42,7 +48,7 @@ If you're using fake data, don't update it.
 
 
 from rapprentice import registration, colorize, berkeley_pr2, \
-     animate_traj, ros2rave, plotting_openrave, task_execution, planning
+     animate_traj, ros2rave, plotting_openrave, task_execution, planning, tps, func_utils
 from rapprentice import pr2_trajectories, PR2
 import rospy
 
@@ -118,7 +124,7 @@ def exec_traj_maybesim(bodypart2traj):
 
 
 
-def find_closest(demofile, new_xyz):
+def find_closest_manual(demofile, new_xyz):
     "for now, just prompt the user"
     seg_names = demofile.keys()
     print "choose from the following options (type an integer)"
@@ -127,6 +133,29 @@ def find_closest(demofile, new_xyz):
     choice_ind = task_execution.request_int_in_range(len(seg_names))
     chosen_seg = seg_names[choice_ind] 
     return chosen_seg
+
+def registration_cost(xyz0, xyz1):
+    scaled_xyz0, _ = registration.unit_boxify(xyz0)
+    scaled_xyz1, _ = registration.unit_boxify(xyz1)
+    print len(scaled_xyz0), len(scaled_xyz1)
+    f,g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, n_iter=10)
+    cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
+    return cost
+
+DS_SIZE = .025
+
+@func_utils.once
+def get_downsampled_clouds(demofile):
+    return [downsample(seg["cloud_xyz"], DS_SIZE) for seg in demofile.values()]
+
+def find_closest_auto(demofile, new_xyz):
+    from joblib import Parallel, delayed
+    ds_clouds = get_downsampled_clouds(demofile)
+    ds_new = downsample(new_xyz,DS_SIZE)
+    costs = Parallel(n_jobs=4,verbose=1)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+    print costs
+    ibest = np.argmin(costs)
+    return demofile.keys()[ibest]
             
             
 def arm_moved(joint_traj):    
@@ -138,6 +167,16 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     handles.append(Globals.env.plot3(ypred_nd, 3, (0,1,0)))
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, x_nd.min(axis=0), x_nd.max(axis=0), xres = .1, yres = .1, zres = .04))
     Globals.viewer.Step()
+
+
+def downsample(xyz,v):
+    cloud = cloudprocpy.CloudXYZ()
+    xyz1 = np.ones((len(xyz),4),'float')
+    xyz1[:,:3] = xyz
+    cloud.from2dArray(xyz1)
+    cloud = cloudprocpy.downsampleCloud(cloud, v)
+    return cloud.to2dArray()[:,:3]
+
 ###################
 
 
@@ -194,14 +233,13 @@ def main():
             rgb, depth = grabber.getRGBD()
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
             new_xyz = cloud_proc_func(rgb, depth, T_w_k)
-
     
         ################################    
         redprint("Finding closest demonstration")
         if args.fake_data_segment:
             seg_name = args.fake_data_segment
         else:
-            seg_name = find_closest(demofile, new_xyz)
+            seg_name = find_closest_auto(demofile, new_xyz)
         
         seg_info = demofile[seg_name]
         # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
@@ -212,16 +250,22 @@ def main():
 
         handles = []
         old_xyz = np.squeeze(seg_info["cloud_xyz"])
-        handles.append(Globals.env.plot3(old_xyz,5, (1,0,0,1)))
-        handles.append(Globals.env.plot3(new_xyz,5, (0,0,1,1)))
+        handles.append(Globals.env.plot3(old_xyz,5, (1,0,0)))
+        handles.append(Globals.env.plot3(new_xyz,5, (0,0,1)))
 
+        
+        old_xyz = downsample(old_xyz, .025)
+        new_xyz = downsample(new_xyz, .025)
 
-        f = registration.tps_rpm(old_xyz, new_xyz, plot_cb = tpsrpm_plot_cb,plotting=1)            
+        scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
+        scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)        
+        f,_ = registration.tps_rpm_bij(scaled_old_xyz, scaled_new_xyz, plot_cb = tpsrpm_plot_cb,
+                                       plotting=5,rot_reg=1e-2, n_iter=50, reg_init=10, reg_final=.1)
+        f = registration.unscale_tps(f, src_params, targ_params)
         
         #f = registration.ThinPlateSpline() XXX XXX
         
-        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))
-        
+        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0), old_xyz.max(axis=0), xres = .1, yres = .1, zres = .04))        
 
         link2eetraj = {}
         for lr in 'lr':
@@ -290,5 +334,5 @@ def main():
     
         if args.fake_data_segment: break
 
-
-main()
+if __name__ == "__main__":
+    main()

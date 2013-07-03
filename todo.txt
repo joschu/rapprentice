@@ -1,2 +1,3 @@
-- registration kinda sucks. parameters?
 - allow user to separate raw data from yaml files and hdf5
+- make more unit tests for registration
+- update do_task.py with new scheme

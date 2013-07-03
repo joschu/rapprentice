@@ -57,7 +57,7 @@ class Transformation(object):
         hmat_mGD = np.empty_like(hmat_mAD)
         hmat_mGD[:,:3,3] = self.transform_points(hmat_mAD[:,:3,3])
         hmat_mGD[:,:3,:3] = self.transform_bases(hmat_mAD[:,:3,3], hmat_mAD[:,:3,:3])
-        hmat_mgd[:,3,:] = np.array([0,0,0,1])
+        hmat_mGD[:,3,:] = np.array([0,0,0,1])
         return hmat_mGD
         
     def compute_numerical_jacobian(self, x_d, epsilon=0.0001):
@@ -95,6 +95,32 @@ class ThinPlateSpline(Transformation):
         grad_mga = tps.tps_grad(x_ma, self.lin_ag, self.trans_g, self.w_ng, self.x_na)
         return grad_mga
         
+class Affine(Transformation):
+    def __init__(self, lin_ag, trans_g):
+        self.lin_ag = lin_ag
+        self.trans_g = trans_g
+    def transform_points(self, x_ma):
+        return x_ma.dot(self.lin_ag) + self.trans_g[None,:]  
+    def compute_jacobian(self, x_ma):
+        return np.repeat(self.lin_ag.T[None,:,:],len(x_ma), axis=0)
+        
+class Composition(Transformation):
+    def __init__(self, fs):
+        "applied from first to last (left to right)"
+        self.fs = fs
+    def transform_points(self, x_ma):
+        for f in self.fs: x_ma = f.transform_points(x_ma)
+        return x_ma
+    def compute_jacobian(self, x_ma):
+        grads = []
+        for f in self.fs:
+            grad_mga = f.compute_jacobian(x_ma)
+            grads.append(grad_mga)
+            x_ma = f.transform_points(x_ma)
+        totalgrad = grads[0]
+        for grad in grads[1:]:
+            totalgrad = (grad[:,:,:,None] * totalgrad[:,None,:,:]).sum(axis=-2)
+        return totalgrad
 
 def fit_ThinPlateSpline(x_na, y_ng, bend_coef=.1, rot_coef = 1e-5, wt_n=None):
     """
@@ -118,14 +144,56 @@ def fit_ThinPlateSpline_RotReg(x_na, y_ng, bend_coef = .1, rot_coefs = (0.01,0.0
     f.x_na = x_na
     return f        
     
-    
+
 
 def loglinspace(a,b,n):
     "n numbers between a to b (inclusive) with constant ratio between consecutive numbers"
     return np.exp(np.linspace(np.log(a),np.log(b),n))    
+    
 
 
-def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .05, rad_final = .001, 
+def unit_boxify(x_na):    
+    ranges = x_na.ptp(axis=0)
+    dlarge = ranges.argmax()
+    unscaled_translation = - (x_na.min(axis=0) + x_na.max(axis=0))/2
+    scaling = 1./ranges[dlarge]
+    scaled_translation = unscaled_translation * scaling
+    return x_na*scaling + scaled_translation, (scaling, scaled_translation)
+    
+def unscale_tps_3d(f, src_params, targ_params):
+    """Only works in 3d!!"""
+    assert len(f.trans_g) == 3
+    p,q = src_params
+    r,s = targ_params
+    print p,q,r,s
+    fnew = ThinPlateSpline()
+    fnew.x_na = (f.x_na  - q[None,:])/p 
+    fnew.w_ng = f.w_ng * p / r
+    fnew.lin_ag = f.lin_ag * p / r
+    fnew.trans_g = (f.trans_g  + f.lin_ag.T.dot(q) - s)/r
+    
+    return fnew
+
+def unscale_tps(f, src_params, targ_params):
+    """Only works in 3d!!"""
+    p,q = src_params
+    r,s = targ_params
+    
+    d = len(q)
+    
+    lin_in = np.eye(d)*p
+    trans_in = q
+    aff_in = Affine(lin_in, trans_in)
+    
+    lin_out = np.eye(d)/r
+    trans_out = -s/r
+    aff_out = Affine(lin_out, trans_out)
+
+    return Composition([aff_in, f, aff_out])
+    
+    
+
+def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .05, rad_final = .001, rot_reg=1e-4,
             plotting = False, verbose=True, f_init = None, return_full = False, plot_cb = None):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
@@ -140,135 +208,86 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
         f = f_init  
     else:
         f = ThinPlateSpline(d)
-        f.trans_g = np.median(y_md,axis=0) - np.median(x_nd,axis=0)
+        # f.trans_g = np.median(y_md,axis=0) - np.median(x_nd,axis=0)
+
     for i in xrange(n_iter):
         xwarped_nd = f.transform_points(x_nd)
-        # targ_nd = find_targets(x_nd, y_md, corr_opts = dict(r = rads[i], p = .1))
-        corr_nm = calc_correspondence_matrix(xwarped_nd, y_md, r=rads[i], p=.2, ratio_err_tol=1e-2,max_iter=10)
+        corr_nm = calc_correspondence_matrix(xwarped_nd, y_md, r=rads[i], p=.1, ratio_err_tol=1e-2,max_iter=10)
 
         wt_n = corr_nm.sum(axis=1)
 
-        goodn = wt_n > .1
 
-        targ_Nd = np.dot(corr_nm[goodn, :]/wt_n[goodn][:,None], y_md)
+        targ_nd = (corr_nm/wt_n[:,None]).dot(y_md)
         
         if plotting and i%plotting==0:
-            plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f)
+            plot_cb(x_nd, y_md, targ_nd, corr_nm, wt_n, f)
         
         
-        x_Nd = x_nd[goodn]
-        f = fit_ThinPlateSpline(x_Nd, targ_Nd, bend_coef = regs[i], wt_n = wt_n[goodn], rot_coef = 10*regs[i])
+        f = fit_ThinPlateSpline(x_nd, targ_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = rot_reg)
+
+    return f
+
+def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .01, rot_reg = 1e-3, 
+            plotting = False, verbose=True, f_init = None, return_full = False, plot_cb = None):
+    """
+    tps-rpm algorithm mostly as described by chui and rangaran
+    reg_init/reg_final: regularization on curvature
+    rad_init/rad_final: radius for correspondence calculation (meters)
+    plotting: 0 means don't plot. integer n means plot every n iterations
+    """
+    
+    _,d=x_nd.shape
+    regs = loglinspace(reg_init, reg_final, n_iter)
+    rads = loglinspace(rad_init, rad_final, n_iter)
+
+    f = ThinPlateSpline(d)
+    f.trans_g = np.median(y_md,axis=0) - np.median(x_nd,axis=0)
+    
+    g = ThinPlateSpline(d)
+    g.trans_g = -f.trans_g
+
+    for i in xrange(n_iter):
+        xwarped_nd = f.transform_points(x_nd)
+        ywarped_md = g.transform_points(y_md)
+        
+        fwddist_nm = ssd.cdist(xwarped_nd, y_md,'euclidean')
+        invdist_nm = ssd.cdist(x_nd, ywarped_md,'euclidean')
+        
+        r = rads[i]
+        prob_nm = np.exp( -(fwddist_nm + invdist_nm) / (2*r) )
+        corr_nm = balance_matrix(prob_nm, p=.1,ratio_err_tol=1e-2,max_iter=10)
+        
+        wt_n = corr_nm.sum(axis=1)
+        wt_m = corr_nm.sum(axis=0)
 
 
-    if return_full:
-        info = {}
-        info["corr_nm"] = corr_nm
-        info["goodn"] = goodn
-        info["x_Nd"] = x_nd[goodn,:]
-        info["targ_Nd"] = targ_Nd
-        info["wt_N"] = wt_n[goodn]
-        info["cost"] = tps.tps_cost(f.lin_ag, f.trans_g, f.w_ng, x_Nd, targ_Nd, regs[-1])
-        return f, info
-    else:
-        return f
+        xtarg_nd = (corr_nm/wt_n[:,None]).dot(y_md)
+        ytarg_md = (corr_nm/wt_m[None,:]).T.dot(x_nd)
+        
+        if plotting and i%plotting==0:
+            plot_cb(x_nd, y_md, xtarg_nd, corr_nm, wt_n, f)
+        
+        
+        f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = rot_reg)
+        g = fit_ThinPlateSpline(y_md, ytarg_md, bend_coef = regs[i], wt_n=wt_m, rot_coef = rot_reg)
 
+    return f,g
+
+def tps_reg_cost(f):
+    K_nn = tps.tps_kernel_matrix(f.x_na)
+    cost = 0
+    for w in f.w_ng.T:
+        cost += w.dot(K_nn.dot(w))
+    return cost
+    
 def logmap(m):
     "http://en.wikipedia.org/wiki/Axis_angle#Log_map_from_SO.283.29_to_so.283.29"
     theta = np.arccos(np.clip((np.trace(m) - 1)/2,-1,1))
     return (1/(2*np.sin(theta))) * np.array([[m[2,1] - m[1,2], m[0,2]-m[2,0], m[1,0]-m[0,1]]]), theta
-# 
-# def tps_rpm_zrot(x_nd, y_md, n_iter = 5, reg_init = .1, reg_final = .001, rad_init = .2, rad_final = .001, plotting = False, 
-#                  verbose=True, rot_param=(.05, .05, .05), scale_param = .01, plot_cb = None):
-#     """
-#     Do tps_rpm algorithm for each z angle rotation
-#     Then don't reestimate affine part in tps optimization
-#     
-#     rot param: meters error per point per radian
-#     scale param: meters error per log2 scaling
-#     
-#     """
-#     
-#     n_initializations = 5
-#     
-#     n,d = x_nd.shape
-#     regs = loglinspace(reg_init, reg_final, n_iter)
-#     rads = loglinspace(rad_init, rad_final, n_iter)
-#     zrots = np.linspace(-np.pi/2, pi/2, n_initializations)
-# 
-#     costs,tpscosts,regcosts = [],[],[]
-#     fs = []
-#     
-#     # convert in to the right units: meters/pt -> meters*2
-#     rot_coefs = np.array(rot_param)
-#     scale_coef = scale_param
-#     import fastmath
-#     fastmath.set_coeffs(rot_coefs, scale_coef)
-#     #def regfunc(b):        
-#         #if np.linalg.det(b) < 0 or np.isnan(b).any(): return np.inf
-#         #b = b.T
-#         #u,s,vh = np.linalg.svd(b)
-#         ##p = vh.T.dot(s.dot(vh))        
-#         #return np.abs(np.log(s)).sum()*scale_coef + float(np.abs(logmap(u.dot(vh))).dot(rot_coefs))
-#     regfunc = fastmath.rot_reg
-#     reggrad = fastmath.rot_reg_grad
-#     
-#     for a in zrots:
-#         f_init = ThinPlateSplineRegularizedLinearPart(regfunc, reggrad=reggrad)
-#         f_init.n_fit_iters = 2
-#         f_init.lin_ag[:2,:2] = np.array([[cos(a), sin(a)],[-sin(a), cos(a)]])
-#         f_init.trans_g =  y_md.mean(axis=0) - f_init.transform_points(x_nd).mean(axis=0)
-#         f, info = tps_rpm(x_nd, y_md, n_iter=n_iter, reg_init=reg_init, reg_final=reg_final, rad_init = rad_init, rad_final = rad_final, plotting=plotting, verbose=verbose, f_init=f_init, return_full=True, plot_cb=plot_cb)
-#         ypred_ng = f.transform_points(x_nd)
-#         dists_nm = ssd.cdist(ypred_ng, y_md)
-#         # how many radians rotation is one mm average error reduction worth?
-# 
-#         tpscost = info["cost"]
-#         # seems like a reasonable goodness-of-fit measure
-#         regcost = regfunc(f.lin_ag)
-#         tpscosts.append(dists_nm.min(axis=1).mean())
-#         regcosts.append(regcost)
-#         costs.append(tpscost + regcost)
-#         fs.append(f)        
-#         print "linear part", f.lin_ag
-#         u,s,vh = np.linalg.svd(f.lin_ag)
-#         print "angle-axis:",logmap(u.dot(vh))
-#         print "scaling:", s
-#         
-#     print "zrot | tps | reg | total"
-#     for i in xrange(len(zrots)):
-#         print "%.5f | %.5f | %.5f | %.5f"%(zrots[i], tpscosts[i], regcosts[i], costs[i])
-# 
-#     i_best = np.argmin(costs)
-#     best_f = fs[i_best]
-#     print "best initialization angle", zrots[i_best]*180/np.pi
-#     u,s,vh = np.linalg.svd(best_f.lin_ag)
-#     print "best rotation axis,angle:",logmap(u.dot(vh))
-#     print "best scaling:", s
-# 
-#     if plotting:
-#         plot_cb(x_nd, y_md, None, None, None, f)
-# 
-#     return best_f
 
 
-def find_targets(x_md, y_nd, corr_opts):
-    """finds correspondence matrix, and then for each point in source cloud,
-    find the weighted average of its "partners" in the target cloud"""
-
-    corr_mn = calc_correspondence_matrix(x_md, y_nd, **corr_opts)
-    # corr_mn = M.match(x_md, y_nd)
-    # corr_mn = corr_mn / corr_mn.sum(axis=1)[:,None]
-    return np.dot(corr_mn, y_nd)        
-
-def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
-    """
-    sinkhorn procedure. see tps-rpm paper
-    """
-    n = x_nd.shape[0]
-    m = y_md.shape[0]
-    dist_nm = ssd.cdist(x_nd, y_md,'euclidean')
-    prob_nm = np.exp(-dist_nm / r)
-    prob_nm_orig = prob_nm.copy()
+def balance_matrix(prob_nm, p, max_iter=20, ratio_err_tol=1e-3):
+    n,m = prob_nm.shape
     pnoverm = (float(p)*float(n)/float(m))
     for _ in xrange(max_iter):
         colsums = pnoverm + prob_nm.sum(axis=0)        
@@ -279,74 +298,14 @@ def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3
         if ((rowsums-1).__abs__() < ratio_err_tol).all() and ((colsums-1).__abs__() < ratio_err_tol).all():
             break
 
-    prob_nm = np.sqrt(prob_nm_orig * prob_nm)
-    prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
 
     return prob_nm
-    
-def calc_correspondence_matrix2(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
-    from scipy.weave import inline
-    code = """
-    int N,D,M,i,n,m;
-    double dev;
-    
-    N = Nx_nd[0];
-    D = Nx_nd[1];
-    M = Ny_md[0];
 
-    for (i=0; i < max_iter; ++i) {
-
-
-        for (m=0; m < M; ++m) COLSUMS1(m) = ((float)p*N)/M;
-        for (n=0; n < N; ++n) {
-            for (m=0; m < M; ++m) {
-                COLSUMS1(m) += PROB_NM2(n,m);
-            }            
-        }
-        
-        
-        for (n=0; n < N; ++n) {
-            for (m=0; m < M; ++m) {
-                PROB_NM2(n,m) /= COLSUMS1(m);
-            }            
-        }
-        
-        for (n=0; n < N; ++n) rowsums[n] = p;
-        for (n=0; n < N; ++n) {
-            for (m=0; m < M; ++m) {
-                ROWSUMS1(n) += PROB_NM2(n,m);
-            }            
-        }
-        for (n=0; n < N; ++n) {
-            for (m=0; m < M; ++m) {
-                PROB_NM2(n,m) /= ROWSUMS1(n);
-            }            
-        }
-        
-        dev=0; 
-        for (int n=0; n < N; ++n) dev=fmax(dev, fabs(ROWSUMS1(n)-1));
-        for (int m=0; m < M; ++m) dev=fmax(dev, fabs(COLSUMS1(m)-1));
-        if (dev < ratio_err_tol) {
-//            printf("done after %i iters\\n",i);
-            break;
-        }
-        
-    }
-    
-
-    """
+def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
     dist_nm = ssd.cdist(x_nd, y_md,'euclidean')
     prob_nm = np.exp(-dist_nm / r)
-    rowsums = np.zeros(dist_nm.shape[0])
-    colsums = np.zeros(dist_nm.shape[1])
-    p = float(p)
-    prob_nm_orig = prob_nm.copy()    
-    inline(code,["x_nd","y_md","rowsums","colsums","prob_nm","p","max_iter","ratio_err_tol"])
+    return balance_matrix(prob_nm, p=p, max_iter = max_iter, ratio_err_tol = ratio_err_tol)
 
-    prob_nm = np.sqrt(prob_nm_orig * prob_nm)
-    prob_nm /= (p + prob_nm.sum(axis=1))[:,None] # rows sum to 1
-    
-    return prob_nm
 
 def nan2zero(x):
     np.putmask(x, np.isnan(x), 0)
