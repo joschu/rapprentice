@@ -3,8 +3,11 @@ Resample time serieses to reduce the number of datapoints
 """
 from __future__ import division
 import numpy as np
-from rapprentice import log
+from rapprentice import LOG
+import rapprentice.math_utils as mu
 import fastrapp
+import scipy.interpolate as si
+import openravepy
 
 def lerp(a, b, fracs):
     "linearly interpolate between a and b"
@@ -12,8 +15,11 @@ def lerp(a, b, fracs):
     return a*(1-fracs) + b*fracs
 
 def adaptive_resample(x, t = None, max_err = np.inf, max_dx = np.inf, max_dt = np.inf, normfunc = None):
+    """
+    SLOW VERSION
+    """
     #return np.arange(0, len(x), 100)
-    log.info("resampling a path of length %i"%len(x))
+    LOG.info("resampling a path of length %i", len(x))
     x = np.asarray(x)
     
     if x.ndim == 1: x = x[:,None]
@@ -42,6 +48,55 @@ def adaptive_resample(x, t = None, max_err = np.inf, max_dx = np.inf, max_dt = n
     resample_inds = nx.shortest_path(g, 0, n-1)
     return resample_inds
 
+
+def get_velocities(positions, times, tol):
+    positions = np.atleast_2d(positions)
+    n = len(positions)
+    deg = min(3, n - 1)
+    
+    good_inds = np.r_[True,(abs(times[1:] - times[:-1]) >= 1e-6)]
+    good_positions = positions[good_inds]
+    good_times = times[good_inds]
+    
+    if len(good_inds) == 1:
+        return np.zeros(positions[0:1].shape)
+    
+    (tck, _) = si.splprep(good_positions.T,s = tol**2*(n+1), u=good_times, k=deg)
+    #smooth_positions = np.r_[si.splev(times,tck,der=0)].T
+    velocities = np.r_[si.splev(times,tck,der=1)].T    
+    return velocities
+
+def smooth_positions(positions, tol):
+    times = np.arange(len(positions))
+    positions = np.atleast_2d(positions)
+    n = len(positions)
+    deg = min(3, n - 1)
+    
+    good_inds = np.r_[True,(abs(times[1:] - times[:-1]) >= 1e-6)]
+    good_positions = positions[good_inds]
+    good_times = times[good_inds]
+    
+    if len(good_inds) == 1:
+        return np.zeros(positions[0:1].shape)
+    
+    (tck, _) = si.splprep(good_positions.T,s = tol**2*(n+1), u=good_times, k=deg)
+    spos = np.r_[si.splev(times,tck,der=0)].T
+    return spos
+
+def unif_resample(x,n,weights,tol=.001,deg=3):    
+    x = np.atleast_2d(x)
+    weights = np.atleast_2d(weights)
+    x = mu.remove_duplicate_rows(x)
+    x_scaled = x * weights
+    dl = mu.norms(x_scaled[1:] - x_scaled[:-1],1)
+    l = np.cumsum(np.r_[0,dl])
+    
+    (tck,_) = si.splprep(x_scaled.T,k=deg,s = tol**2*len(x),u=l)
+    
+    newu = np.linspace(0,l[-1],n)
+    out_scaled = np.array(si.splev(newu,tck)).T
+    out = out_scaled/weights
+    return out
 
 def test_resample():
     x = [0,0,0,1,2,3,4,4,4]
@@ -72,6 +127,21 @@ def test_resample_big():
     print time() - tstart, "seconds"
     
     assert np.allclose(inds0, inds1)
+
+def interp_quats(newtimes, oldtimes, oldquats):
+    "should actually do slerp"
+    quats_unnormed = mu.interp2d(newtimes, oldtimes, oldquats)
+    return mu.normr(quats_unnormed)
+        
+
+def interp_hmats(newtimes, oldtimes, oldhmats):
+    oldposes = openravepy.poseFromMatrices(oldhmats)
+    newposes = np.empty((len(newtimes), 7))
+    newposes[:,4:7] = mu.interp2d(newtimes, oldtimes, oldposes[:,4:7])
+    newposes[:,0:4] = interp_quats(newtimes, oldtimes, oldposes[:,0:4])
+    newhmats = openravepy.matrixFromPoses(newposes)
+    return newhmats
+
 if __name__ == "__main__":
     test_resample()
     test_resample_big()

@@ -18,7 +18,6 @@ args = parser.parse_args()
 import os, os.path as osp
 import rosbag
 import h5py
-from rapprentice.yes_or_no import yes_or_no
 from rapprentice import bag_proc
 import yaml
 import importlib, inspect

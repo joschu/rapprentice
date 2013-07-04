@@ -148,7 +148,6 @@ def add_bag_to_hdf(bag, annotations, hdfroot, demo_name):
         add_kinematics_to_group(group, link_names, manip_names, special_joint_names, robot)
 
 def get_video_frames(video_dir, frame_stamps):
-    imgs = []
     video_stamps = np.loadtxt(osp.join(video_dir,"stamps.txt"))
     frame_inds = np.searchsorted(video_stamps, frame_stamps)
     

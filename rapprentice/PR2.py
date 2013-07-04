@@ -1,12 +1,11 @@
 
 import numpy as np, os.path as osp
 import openravepy as rave
-from numpy import inf, zeros, dot, r_
+from numpy import inf, zeros, dot, r_, pi
 from numpy.linalg import norm, inv
 from threading import Thread
 
-from rapprentice import retiming, math_utils as mu, kinematics_utils as ku, \
-    conversions as conv, func_utils 
+from rapprentice import retiming, math_utils as mu,conversions as conv, func_utils, resampling
 
 import roslib
 roslib.load_manifest("pr2_controllers_msgs")
@@ -221,7 +220,7 @@ class TrajectoryControllerWrapper(object):
         times = retiming.retime_with_vel_limits(traj, self.vel_limits)
         times_up = np.arange(0,times[-1],.1)
         traj_up = mu.interp2d(times_up, times, traj)
-        vels = ku.get_velocities(traj_up, times_up, .001)
+        vels = resampling.get_velocities(traj_up, times_up, .001)
         self.follow_timed_joint_trajectory(traj_up, vels, times_up)
 
 
@@ -283,7 +282,7 @@ def cart_to_joint(manip, matrix4, ref_frame, targ_frame, filter_options = 0):
     joint_positions = manip.FindIKSolution(worldFromEE, filter_options)
     if joint_positions is None: return joint_positions
     current_joints = robot.GetDOFValues(manip.GetArmIndices())
-    joint_positions_unrolled = ku.closer_joint_angles(joint_positions, current_joints)
+    joint_positions_unrolled = closer_joint_angles(joint_positions, current_joints)
     return joint_positions_unrolled
 
 
@@ -314,7 +313,7 @@ class Arm(TrajectoryControllerWrapper):
 
     def goto_joint_positions(self, positions_goal):
         positions_cur = self.get_joint_positions()        
-        positions_goal = ku.closer_joint_angles(positions_goal, positions_cur)
+        positions_goal = closer_joint_angles(positions_goal, positions_cur)
         TrajectoryControllerWrapper.goto_joint_positions(self, positions_goal)
 
 
@@ -502,3 +501,25 @@ class Base(object):
             jtp.positions = xyas[i]
             jt.points.append(jtp)            
         self.traj_pub.publish(jt)    
+
+
+def smaller_ang(x):
+    return (x + pi)%(2*pi) - pi
+def closer_ang(x,a,dir=0):
+    """                                                                        
+    find angle y (==x mod 2*pi) that is close to a                             
+    dir == 0: minimize absolute value of difference                            
+    dir == 1: y > x                                                            
+    dir == 2: y < x                                                            
+    """
+    if dir == 0:
+        return a + smaller_ang(x-a)
+    elif dir == 1:
+        return a + (x-a)%(2*pi)
+    elif dir == -1:
+        return a + (x-a)%(2*pi) - 2*pi
+def closer_joint_angles(pos,seed):
+    result = np.array(pos)
+    for i in [2,4,6]:
+        result[i] = closer_ang(pos[i],seed[i],0)
+    return result

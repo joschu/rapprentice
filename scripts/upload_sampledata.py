@@ -9,7 +9,6 @@ args = parser.parse_args()
 
 import subprocess,os
 import os.path as osp
-import rapprentice
 print "cding to %s"%osp.dirname(args.sampledata_dir)
 os.chdir(osp.dirname(args.sampledata_dir))
 

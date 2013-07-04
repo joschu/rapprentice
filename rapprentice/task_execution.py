@@ -7,7 +7,7 @@ def request_int_in_range(too_high_val):
     while True:
         choice_ind = int(raw_input())
         if choice_ind <= too_high_val:
-            break
+            return choice_ind
         else:
             print "invalid selection. try again"
 

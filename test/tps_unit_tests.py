@@ -142,11 +142,11 @@ def tps_regrot_with_quad_cost():
     y_ng = np.random.randn(100,3)
     bend_coef = 10
     rot_coef = 19
-    wt_n = np.random.rand(len(x_na))
+    # wt_n = np.random.rand(len(x_na))
     def rfunc(b):
         return rot_coef*((b - np.eye(3))**2).sum()
-    correct_lin_ag, correct_trans_g, correct_w_ng = tps.tps_fit2(x_na, y_ng, bend_coef, rot_coef, wt_n)
-    lin_ag, trans_g, w_ng = tps.tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n, max_iter=30)
+    correct_lin_ag, correct_trans_g, correct_w_ng = tps.tps_fit2(x_na, y_ng, bend_coef, rot_coef)
+    lin_ag, trans_g, w_ng = tps.tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, max_iter=30)
     assert np.allclose(correct_trans_g, trans_g, atol=1e-2)    
     assert np.allclose(correct_lin_ag, lin_ag, atol=1e-2)
     assert np.allclose(correct_w_ng, w_ng,atol=1e-2)

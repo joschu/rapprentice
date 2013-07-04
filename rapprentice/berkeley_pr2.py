@@ -17,9 +17,6 @@ Here's what's in the URDF:
     <origin rpy="0.005 0.035 0.02" xyz="-0.19 0.045 0.22"/>
     </joint>
     <link name="camera_link" type="camera"/>
-
-
-
 """
 
 #T_b_o = np.array([[0,0,1,0],[-1,0,0,0],[0,-1,0,0],[0,0,0,1]])

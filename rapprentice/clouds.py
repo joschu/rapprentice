@@ -1,7 +1,7 @@
 import numpy as np
 
-cx = 320-.5;
-cy = 240-.5;
+cx = 320.-.5
+cy = 240.-.5
 DEFAULT_F = 535.
 
 def xyZ_to_XY(x,y,Z,f=DEFAULT_F):
@@ -23,5 +23,4 @@ def depth_to_xyz(depth,f=DEFAULT_F):
     XYZ[:,:,1] = (y - cy)*(Z/f)
 
     return XYZ
-    
     

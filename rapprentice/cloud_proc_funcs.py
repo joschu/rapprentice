@@ -1,7 +1,6 @@
 import cloudprocpy
 from rapprentice import berkeley_pr2, clouds
 import cv2, numpy as np
-import rapprentice
 
 DEBUG_PLOTS = False
 
@@ -30,7 +29,7 @@ def extract_red(rgb, depth, T_w_k):
         cv2.imshow("rgb", rgb)
         cv2.waitKey()
     
-    height_mask = xyz_w[:,:,2] > .7 # XXXX pass in parameter
+    height_mask = xyz_w[:,:,2] > .7 # TODO pass in parameter
     
     
     good_mask = red_mask & height_mask & valid_mask
@@ -71,7 +70,7 @@ def extract_red_alphashape(cloud, robot):
     # transform into body frame
     xyz1_kinect = cloud_ds.to2dArray()
     xyz1_kinect[:,3] = 1
-    T_w_k = get_kinect_transform(robot)
+    T_w_k = berkeley_pr2.get_kinect_transform(robot)
     xyz1_robot = xyz1_kinect.dot(T_w_k.T)
     
     # compute 2D alpha shape

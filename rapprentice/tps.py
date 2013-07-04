@@ -168,7 +168,6 @@ def tps_nr_cost_eval_general(lin_ag, trans_g, w_eg, x_ea, y_ng, nr_ma, bend_coef
 def tps_fit(x_na, y_ng, bend_coef, rot_coef, wt_n=None, K_nn = None):
     N,D = x_na.shape
         
-    # XXX wt not used
     K_nn = tps_kernel_matrix(x_na) if K_nn is None else K_nn
     coef_ratio = bend_coef / rot_coef if rot_coef > 0 else 0
     #if wt_n is None: reg_nn = bend_coef * np.eye(N)    
@@ -214,8 +213,6 @@ def solve_eqp1(H, f, A):
     assert A.shape[1] == n_vars
     n_cnts = A.shape[0]
     
-    dim_feas = n_vars - n_cnts
-
     _u,_s,_vh = np.linalg.svd(A.T)
     N = _u[:,n_cnts:]
     # columns of N span the null space
@@ -238,10 +235,11 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     QWQ = Q.T.dot(WQ)
     H = QWQ
     H[d+1:,d+1:] += bend_coef * K_nn
-    H[1:d+1, 1:d+1] += rot_coef * np.eye(d)
+    rot_coefs = np.ones(d) * rot_coef if np.isscalar(rot_coef) else rot_coef
+    H[1:d+1, 1:d+1] += np.diag(rot_coefs)
     
     f = -WQ.T.dot(y_ng)
-    f[1:d+1,0:d] -= rot_coef * np.eye(d)
+    f[1:d+1,0:d] -= np.diag(rot_coefs)
     
     A = np.r_[np.zeros((d+1,d+1)), np.c_[np.ones((n,1)), x_na]].T
     
@@ -250,11 +248,8 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     return Theta[1:d+1], Theta[0], Theta[d+1:]
     
     
-    
-    
-    
-    
 def tps_fit2(x_na, y_ng, bend_coef, rot_coef, wt_n=None):
+    if wt_n is not None: raise NotImplementedError
 
     N,D = x_na.shape 
     _u,_s,_vh = np.linalg.svd(np.c_[x_na, np.ones((N,1))], full_matrices=True)
@@ -374,7 +369,7 @@ def tps_nr_fit(x_na, y_ng, bend_coef, nr_ma, nr_coef, method="newton"):
 
 
 
-def tps_nr_fit_enhanced(x_na, y_ng, bend_coef, nr_ma, nr_coef, plotting=0):
+def tps_nr_fit_enhanced(x_na, y_ng, bend_coef, nr_ma, nr_coef):
     
     N,D = x_na.shape
     M = nr_ma.shape[0]
@@ -476,6 +471,7 @@ def tps_fit_fixedrot(x_na, y_ng, bend_coef, lin_ag, K_nn = None, wt_n=None):
     """
     minimize (Y-KA-XB-1C)'W(Y-KA-XB-1C) + tr(A'KA) + r(B)
     """
+    if wt_n is not None: raise NotImplementedError
     
     N,_D = x_na.shape
     _u,_s,_vh = np.linalg.svd(np.c_[x_na, np.ones((N,1))], full_matrices=True)
@@ -501,10 +497,11 @@ def tps_fit_regrot(x_na, y_ng, bend_coef, rfunc, wt_n=None, max_iter = 1, inner_
     minimize (Y-KA-XB-1C)' W (Y-KA-XB-1C) + tr(A'KA) + r(B)
     subject to A'(X 1) = 0
     """
-    
+    if rgrad is not None: raise NotImplementedError
+    if wt_n is not None: raise NotImplementedError
 
 
-    N,D = x_na.shape
+    N,_D = x_na.shape
     K_nn = tps_kernel_matrix(x_na)
     # initialize with tps_fit and small rotation regularization
     if l_init is None: 
@@ -566,4 +563,5 @@ def tps_cost_regrot(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef, rfunc, K_nn = 
     (Y-KA-XB-1C)' W (Y-KA-XB-1C) + tr(A'KA) + r(B)
     subject to A'(X 1) = 0
     """
+    if wt_n is not None: raise NotImplementedError
     return tps_cost(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef, K_nn) + rfunc(lin_ag)

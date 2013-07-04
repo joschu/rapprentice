@@ -3,7 +3,8 @@ import cv2, numpy as np
 from rapprentice.registration import tps_rpm, unit_boxify, unscale_tps
 from rapprentice.plotting_plt import plot_warped_grid_2d
 from time import time
-
+import os, os.path as osp
+from glob import glob
 
 def pixel_downsample(xy, s):
     xy = xy[np.isfinite(xy[:,0])]
@@ -20,10 +21,12 @@ def voxel_downsample(xyz, s):
         d[(int(x/s), int(y/s), int(z/s))].append(i)
     return np.array([xyz[inds].mean(axis=0) for inds in d.values()])
 
-from glob import glob
-fnames = glob("testimgs/*.png")
+SAMPLEDATA_DIR = osp.expanduser("~/Data/sampledata")
+assert osp.exists(SAMPLEDATA_DIR)
 
-plotting = False
+fnames = glob(osp.join(SAMPLEDATA_DIR, "letter_images", "*.png"))
+
+plotting = True
 
 for fname in fnames:
     im = cv2.imread(fname, 0)
@@ -33,9 +36,6 @@ for fname in fnames:
     R = np.array([[.7, .4], [.3,.9]])
     T = np.array([[.3,.4]])
     fxys = (xys.dot(R) + T)**2 
-    # fxys = np.copy(xys)
-    # poop
-
 
     xys = np.c_[xys, np.zeros((len(xys)))]
     fxys = np.c_[fxys, np.zeros((len(fxys)))]
@@ -54,10 +54,11 @@ for fname in fnames:
     
     
     
-    print "%.4f elapsed"%(time()-tstart)
+    print "time: %.4f"%(time()-tstart)
     fest = unscale_tps(fest_scaled, src_params, targ_params)
-    
     fxys_est = fest.transform_points(xys)
+    print "error:", np.abs(fxys_est - fxys).mean()
+    
     if plotting:
         import matplotlib.pyplot as plt
         plt.clf()
@@ -73,7 +74,6 @@ for fname in fnames:
 
         # plot_warped_grid_2d(fest.transform_points, [0,0], [1,1])
         plt.draw()
-        print "error", np.abs(fxys_est - fxys).mean()
         plt.ginput()
     
     

@@ -5,9 +5,7 @@ parser.add_argument("path", help="script will create a sampledata directory in t
 parser.add_argument("--use_rsync", action="store_true")
 args = parser.parse_args()
 
-import os, urllib2, subprocess, shutil
-import os.path as osp
-import rapprentice
+import os, urllib2, shutil
 from rapprentice.yes_or_no import yes_or_no
 from rapprentice.call_and_print import call_and_print
 
