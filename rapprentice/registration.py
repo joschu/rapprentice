@@ -324,9 +324,9 @@ def orthogonalize3_cross(mats_n33):
     y_n3 = mats_n33[:,:,1]
     # z_n3 = mats_n33[:,:,2]
 
-    xnew_n3 = math_utils.normr(x_n3)
-    znew_n3 = math_utils.normr(np.cross(xnew_n3, y_n3))
-    ynew_n3 = math_utils.normr(np.cross(znew_n3, xnew_n3))
+    znew_n3 = math_utils.normr(z_n3)
+    ynew_n3 = math_utils.normr(np.cross(znew_n3, x_n3))
+    xnew_n3 = math_utils.normr(np.cross(ynew_n3, znew_n3))
 
     return np.concatenate([xnew_n3[:,:,None], ynew_n3[:,:,None], znew_n3[:,:,None]],2)
 
