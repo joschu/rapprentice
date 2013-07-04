@@ -1,5 +1,6 @@
 import openravepy,trajoptpy, numpy as np, json
 
+
 def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         
     n_steps = len(new_hmats)
@@ -22,7 +23,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         "costs" : [
         {
             "type" : "joint_vel",
-            "params": {"coeffs" : [1]}
+            "params": {"coeffs" : [n_steps/5.]}
         },
         {
             "type" : "collision",
@@ -46,8 +47,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
                 "wxyz":pose[0:4].tolist(),
                 "link":ee_linkname,
                 "timestep":i_step,
-                "pos_coeffs":[2,2,2],
-                "rot_coeffs":[5,5,5]
+                "pos_coeffs":[10,10,10],
+                "rot_coeffs":[10,10,10]
              }
             })
 
