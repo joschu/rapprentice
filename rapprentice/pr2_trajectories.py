@@ -1,7 +1,7 @@
-import rospy
 import numpy as np
 from rapprentice import conversions as conv, math_utils as mu, \
-    kinematics_utils as ku, retiming, PR2, resampling
+    retiming, PR2, resampling
+from rapprentice import LOG
 
 def make_joint_traj(xyzs, quats, manip, ref_frame, targ_frame, filter_options = 0):
     "do ik and then fill in the points where ik failed"
@@ -29,7 +29,7 @@ def make_joint_traj(xyzs, quats, manip, ref_frame, targ_frame, filter_options = 
     robot.SetActiveDOFValues(orig_joint)
     
     
-    rospy.loginfo("found ik soln for %i of %i points",len(inds), n)
+    LOG.info("found ik soln for %i of %i points",len(inds), n)
     if len(inds) > 2:
         joints2 = mu.interp2d(np.arange(n), inds, joints)
         return joints2, inds
@@ -40,7 +40,7 @@ def make_joint_traj(xyzs, quats, manip, ref_frame, targ_frame, filter_options = 
 
 def follow_body_traj(pr2, bodypart2traj, wait=True, base_frame = "/base_footprint", speed_factor=1):    
 
-    rospy.loginfo("following trajectory with bodyparts %s", " ".join(bodypart2traj.keys()))
+    LOG.info("following trajectory with bodyparts %s", " ".join(bodypart2traj.keys()))
     
     name2part = {"lgrip":pr2.lgrip, 
                  "rgrip":pr2.rgrip, 

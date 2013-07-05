@@ -1,15 +1,7 @@
 """
 Register point clouds to each other
-"""
-
-from __future__ import division
-import numpy as np
-import scipy.spatial.distance as ssd
-from rapprentice import tps, svds, math_utils
-# from svds import svds
 
 
-"""
 arrays are named like name_abc
 abc are subscripts and indicate the what that tensor index refers to
 
@@ -20,6 +12,14 @@ index name conventions:
     g: output coordinate
     d: gripper coordinate
 """
+
+from __future__ import division
+import numpy as np
+import scipy.spatial.distance as ssd
+from rapprentice import tps, svds, math_utils
+# from svds import svds
+
+
 
 class Transformation(object):
     """
@@ -193,7 +193,7 @@ def unscale_tps(f, src_params, targ_params):
     
     
 
-def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .05, rad_final = .001, rot_reg=1e-4,
+def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg=1e-4,
             plotting = False, f_init = None, plot_cb = None):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
@@ -212,7 +212,7 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
 
     for i in xrange(n_iter):
         xwarped_nd = f.transform_points(x_nd)
-        corr_nm = calc_correspondence_matrix(xwarped_nd, y_md, r=rads[i], p=.1, ratio_err_tol=1e-2,max_iter=10)
+        corr_nm = calc_correspondence_matrix(xwarped_nd, y_md, r=rads[i], p=.1, max_iter=10)
 
         wt_n = corr_nm.sum(axis=1)
 
@@ -255,7 +255,7 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         
         r = rads[i]
         prob_nm = np.exp( -(fwddist_nm + invdist_nm) / (2*r) )
-        corr_nm = balance_matrix(prob_nm, p=.1,ratio_err_tol=1e-2,max_iter=10)
+        corr_nm =  balance_matrix3(prob_nm, 10, 1e-2, 1e-1)
         
         wt_n = corr_nm.sum(axis=1)
         wt_m = corr_nm.sum(axis=0)
@@ -266,7 +266,6 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         
         if plotting and i%plotting==0:
             plot_cb(x_nd, y_md, xtarg_nd, corr_nm, wt_n, f)
-        
         
         f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = rot_reg)
         g = fit_ThinPlateSpline(y_md, ytarg_md, bend_coef = regs[i], wt_n=wt_m, rot_coef = rot_reg)
@@ -286,6 +285,31 @@ def logmap(m):
     return (1/(2*np.sin(theta))) * np.array([[m[2,1] - m[1,2], m[0,2]-m[2,0], m[1,0]-m[0,1]]]), theta
 
 
+def balance_matrix3(prob_nm, max_iter, p, outlierfrac):
+    
+    n,m = prob_nm.shape
+    prob_NM = np.empty((n+1, m+1), 'f4')
+    prob_NM[:n, :m] = prob_nm
+    prob_NM[:n, m] = p
+    prob_NM[n, :m] = p
+    prob_NM[n, m] = p*np.sqrt(n*m)
+    
+    a_N = np.ones((n+1),'f4')
+    a_N[n] = m*outlierfrac
+    b_M = np.ones((m+1),'f4')
+    b_M[m] = n*outlierfrac
+    
+    r_N = np.ones(n+1,'f4')
+    c_M = np.ones(m+1,'f4')
+    for _ in xrange(max_iter):
+        c_M = b_M/r_N.dot(prob_NM)
+        r_N = a_N/prob_NM.dot(c_M)
+
+    prob_NM *= r_N[:,None]
+    prob_NM *= c_M[None,:]
+    
+    return prob_NM[:n, :m]
+
 def balance_matrix(prob_nm, p, max_iter=20, ratio_err_tol=1e-3):
     n,m = prob_nm.shape
     pnoverm = (float(p)*float(n)/float(m))
@@ -301,10 +325,15 @@ def balance_matrix(prob_nm, p, max_iter=20, ratio_err_tol=1e-3):
 
     return prob_nm
 
-def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20, ratio_err_tol=1e-3):
+def calc_correspondence_matrix(x_nd, y_md, r, p, max_iter=20):
     dist_nm = ssd.cdist(x_nd, y_md,'euclidean')
+    
+    
     prob_nm = np.exp(-dist_nm / r)
-    return balance_matrix(prob_nm, p=p, max_iter = max_iter, ratio_err_tol = ratio_err_tol)
+    # Seems to work better without **2
+    # return balance_matrix(prob_nm, p=p, max_iter = max_iter, ratio_err_tol = ratio_err_tol)
+    outlierfrac = 1e-1
+    return balance_matrix3(prob_nm, max_iter, p, outlierfrac)
 
 
 def nan2zero(x):
@@ -321,8 +350,8 @@ def orthogonalize3_cross(mats_n33):
     "turns each matrix into a rotation"
 
     x_n3 = mats_n33[:,:,0]
-    y_n3 = mats_n33[:,:,1]
-    # z_n3 = mats_n33[:,:,2]
+    # y_n3 = mats_n33[:,:,1]
+    z_n3 = mats_n33[:,:,2]
 
     znew_n3 = math_utils.normr(z_n3)
     ynew_n3 = math_utils.normr(np.cross(znew_n3, x_n3))

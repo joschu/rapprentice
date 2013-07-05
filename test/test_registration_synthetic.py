@@ -1,7 +1,7 @@
 from collections import defaultdict
 import cv2, numpy as np
-from rapprentice.registration import tps_rpm, unit_boxify, unscale_tps
 from rapprentice.plotting_plt import plot_warped_grid_2d
+import rapprentice.registration as reg
 from time import time
 import os, os.path as osp
 from glob import glob
@@ -26,7 +26,7 @@ assert osp.exists(SAMPLEDATA_DIR)
 
 fnames = glob(osp.join(SAMPLEDATA_DIR, "letter_images", "*.png"))
 
-plotting = True
+plotting = False
 
 for fname in fnames:
     im = cv2.imread(fname, 0)
@@ -41,8 +41,8 @@ for fname in fnames:
     fxys = np.c_[fxys, np.zeros((len(fxys)))]
 
     
-    scaled_xys, src_params = unit_boxify(xys)
-    scaled_fxys, targ_params = unit_boxify(fxys)
+    scaled_xys, src_params = reg.unit_boxify(xys)
+    scaled_fxys, targ_params = reg.unit_boxify(fxys)
     
     scaled_ds_xys = voxel_downsample(scaled_xys, .03)
     scaled_ds_fxys = voxel_downsample(scaled_fxys, .03)
@@ -50,12 +50,13 @@ for fname in fnames:
     print "downsampled to %i and %i pts"%(len(scaled_ds_xys),len(scaled_ds_fxys))
     tstart = time()
     
-    fest_scaled = tps_rpm(scaled_ds_xys, scaled_ds_fxys, n_iter=10, reg_init = 10, reg_final=.01)
+    # fest_scaled = reg.tps_rpm(scaled_ds_xys, scaled_ds_fxys, n_iter=10, reg_init = 10, reg_final=.01)
+    fest_scaled,_ = reg.tps_rpm_bij(scaled_ds_xys, scaled_ds_fxys, n_iter=10, reg_init = 10, reg_final=.01)
     
     
     
     print "time: %.4f"%(time()-tstart)
-    fest = unscale_tps(fest_scaled, src_params, targ_params)
+    fest = reg.unscale_tps(fest_scaled, src_params, targ_params)
     fxys_est = fest.transform_points(xys)
     print "error:", np.abs(fxys_est - fxys).mean()
     

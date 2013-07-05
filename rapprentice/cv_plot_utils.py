@@ -10,7 +10,7 @@ class Colors:
 class ClickGetter:
     xy = None
     done = False
-    def callback(self,event, x, y, flags, param):
+    def callback(self,event, x, y, _flags, _param):
         if self.done:
             return
         elif event == cv2.EVENT_LBUTTONDOWN:
@@ -56,6 +56,7 @@ def tile_images(imgs, nrows, ncols, row_titles = None, col_titles = None, max_wi
         for i in xrange(len(imgs)): 
             imgs[i] = cv2.resize(imgs[i], (int(imgs[i].shape[1]*ratio), int(imgs[i].shape[0]*ratio)))
     
+    if col_titles is not None: raise NotImplementedError
     imgrows = []
     for irow in xrange(nrows):
         rowimgs = imgs[irow*ncols:(irow+1)*ncols]
