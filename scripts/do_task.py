@@ -9,6 +9,9 @@ Run in simulation with a translation and a rotation of fake data:
 Run in simulation choosing the closest demo, single threaded
 ./do_task.py ~/Data/all.h5 --fake_data_segment=demo1-seg00 --execution=0  --animation=1  --parallel=0 
 
+Actually run on the robot without pausing or animating 
+./do_task.py ~/Data/overhand2/all.h5 --execution=1 --animation=0
+
 """
 parser = argparse.ArgumentParser(usage=usage)
 parser.add_argument("h5file", type=str)

@@ -227,7 +227,7 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
 
     return f
 
-def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .01, rot_reg = 1e-3, 
+def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 
             plotting = False, plot_cb = None):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
@@ -246,6 +246,9 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
     g = ThinPlateSpline(d)
     g.trans_g = -f.trans_g
 
+
+    # r_N = None
+    
     for i in xrange(n_iter):
         xwarped_nd = f.transform_points(x_nd)
         ywarped_md = g.transform_points(y_md)
@@ -255,7 +258,8 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         
         r = rads[i]
         prob_nm = np.exp( -(fwddist_nm + invdist_nm) / (2*r) )
-        corr_nm =  balance_matrix3(prob_nm, 10, 1e-2, 1e-1)
+        corr_nm, r_N, _ =  balance_matrix3(prob_nm, 10, 1e-1, 2e-1)
+        corr_nm += 1e-9
         
         wt_n = corr_nm.sum(axis=1)
         wt_m = corr_nm.sum(axis=0)
@@ -285,7 +289,7 @@ def logmap(m):
     return (1/(2*np.sin(theta))) * np.array([[m[2,1] - m[1,2], m[0,2]-m[2,0], m[1,0]-m[0,1]]]), theta
 
 
-def balance_matrix3(prob_nm, max_iter, p, outlierfrac):
+def balance_matrix3(prob_nm, max_iter, p, outlierfrac, r_N = None):
     
     n,m = prob_nm.shape
     prob_NM = np.empty((n+1, m+1), 'f4')
@@ -299,8 +303,8 @@ def balance_matrix3(prob_nm, max_iter, p, outlierfrac):
     b_M = np.ones((m+1),'f4')
     b_M[m] = n*outlierfrac
     
-    r_N = np.ones(n+1,'f4')
-    c_M = np.ones(m+1,'f4')
+    if r_N is None: r_N = np.ones(n+1,'f4')
+
     for _ in xrange(max_iter):
         c_M = b_M/r_N.dot(prob_NM)
         r_N = a_N/prob_NM.dot(c_M)
@@ -308,7 +312,7 @@ def balance_matrix3(prob_nm, max_iter, p, outlierfrac):
     prob_NM *= r_N[:,None]
     prob_NM *= c_M[None,:]
     
-    return prob_NM[:n, :m]
+    return prob_NM[:n, :m], r_N, c_M
 
 def balance_matrix(prob_nm, p, max_iter=20, ratio_err_tol=1e-3):
     n,m = prob_nm.shape
