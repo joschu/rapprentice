@@ -126,6 +126,7 @@ def tps_cost(lin_ag, trans_g, w_ng, x_na, y_ng, bend_coef, K_nn=None, return_tup
     """
     D = lin_ag.shape[0]
     if K_nn is None: K_nn = tps_kernel_matrix(x_na)
+    if wt_n is None: wt_n = np.ones(len(x_na))
     ypred_ng = np.dot(K_nn, w_ng) + np.dot(x_na, lin_ag) + trans_g[None,:]
     res_cost = (wt_n[:,None] * (ypred_ng - y_ng)**2).sum()
     bend_cost = bend_coef * sum(np.dot(w_ng[:,g], np.dot(K_nn, w_ng[:,g])) for g in xrange(D))

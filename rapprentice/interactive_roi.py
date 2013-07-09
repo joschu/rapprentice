@@ -25,7 +25,7 @@ def get_polyline(image,window_name):
         cv2.imshow(window_name,im_copy)
         key = cv2.waitKey(50)
         if key == ord('c'): gp.done = True
-    cv2.destroyWindow(window_name)
+    #cv2.destroyWindow(window_name)
     return gp.xys
 
 def get_polygon_and_prompt(image, window_name):
