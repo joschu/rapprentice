@@ -24,3 +24,13 @@ def depth_to_xyz(depth,f=DEFAULT_F):
 
     return XYZ
     
+def downsample(xyz, v):
+    import cloudprocpy
+    cloud = cloudprocpy.CloudXYZ()
+    xyz1 = np.ones((len(xyz),4),'float')
+    xyz1[:,:3] = xyz
+    cloud.from2dArray(xyz1)
+    cloud = cloudprocpy.downsampleCloud(cloud, v)
+    return cloud.to2dArray()[:,:3]
+
+    
