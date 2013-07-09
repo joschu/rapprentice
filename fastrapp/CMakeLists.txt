@@ -22,19 +22,26 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(BUILD_SHARED_LIBS true)
 
-set(ROS_VERSION "groovy" CACHE STRING "what version of ros")
 
-set(ROS_INCLUDE_DIRS "/opt/ros/${ROS_VERSION}/include")
-set(ROS_LIB_DIR "/opt/ros/${ROS_VERSION}/lib")
-set(ROS_LIBRARIES "${ROS_LIB_DIR}/libroscpp.so" "${ROS_LIB_DIR}/librostime.so")
+option(OPT_ROS "build stuff involving ros, e.g. record_demo program" OFF)
+
+if (OPT_ROS)
+  set(ROS_VERSION "groovy" CACHE STRING "what version of ros")
+
+  set(ROS_INCLUDE_DIRS "/opt/ros/${ROS_VERSION}/include")
+  set(ROS_LIB_DIR "/opt/ros/${ROS_VERSION}/lib")
+  set(ROS_LIBRARIES "${ROS_LIB_DIR}/libroscpp.so" "${ROS_LIB_DIR}/librostime.so")
+endif (OPT_ROS)
 
 include_directories(${PCL_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${ROS_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS} ${OpenCV_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 add_definitions("-DEIGEN_DEFAULT_TO_ROW_MAJOR")
 
-add_executable(record_rgbd_video record_rgbd_video.cpp config.cpp)
-target_link_libraries(record_rgbd_video ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} ${ROS_LIBRARIES} boost_program_options)
+if (OPT_ROS)
+  add_executable(record_rgbd_video record_rgbd_video.cpp config.cpp)
+  target_link_libraries(record_rgbd_video ${OpenCV_LIBRARIES} ${PCL_LIBRARIES} ${ROS_LIBRARIES} boost_program_options)
+endif(OPT_ROS)
 
 include_directories(${PYTHON_NUMPY_INCLUDE_DIR})
 boost_python_module(fastrapp fastrapp.cpp)
