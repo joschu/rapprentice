@@ -76,7 +76,7 @@ finally:
 bagfilename = demo_name+".bag"
 if yes_or_no("save demo?"):
     annfilename = demo_name+".ann.yaml"
-    call_and_print("generate_annotations.py %s %s"%(bagfilename, annfilename))
+    call_and_print("generate_annotations.py %s %s"%(bagfilename, annfilename),check=False)
     with open(args.master_file,"a") as fh:
         fh.write("\n"
             "- bag_file: %(bagfilename)s\n"

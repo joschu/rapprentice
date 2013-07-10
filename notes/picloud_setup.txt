@@ -1,0 +1,50 @@
+
+sudo echo "deb http://ppa.launchpad.net/openrave/testing/ubuntu precise main" > openrave-testing.list 
+sudo echo "deb-src http://ppa.launchpad.net/openrave/testing/ubuntu precise main" >> openrave-testing.list 
+sudo mv openrave-testing.list /etc/apt/sources.list.d
+
+echo "deb http://ppa.launchpad.net/v-launchpad-jochen-sprickerhof-de/pcl/ubuntu precise main" > pcl.list
+echo "deb-src http://ppa.launchpad.net/v-launchpad-jochen-sprickerhof-de/pcl/ubuntu precise main" >> pcl.list
+sudo mv pcl.list /etc/apt/sources.list.d
+
+sudo apt-get update
+
+
+
+sudo apt-get install openrave0.9-dp
+sudo apt-get install openrave0.9-dp-base
+sudo apt-get install openrave0.9-dp-dev
+sudo apt-get install libopenscenegraph-dev cmake libboost-all-dev libeigen3-dev python-numpy
+sudo apt-get install libpcl-all-dev
+sudo apt-get install emacs
+sudo apt-get install python-networkx python-joblib
+
+
+cd /usr/lib/python2.7/dist-packages/openravepy
+sudo ln -s _openravepy_0_9 _openravepy_
+cd ~
+
+git clone https://github.com/joschu/trajopt.git
+git clone https://github.com/hojonathanho/bulletsim.git
+git clone https://github.com/joschu/rapprentice.git
+
+mkdir -p ~/build
+mkdir -p ~/build/trajopt
+mkdir -p ~/build/bulletsim
+
+cd ~/build/trajopt
+cmake ~/trajopt -DBUILD_CLOUDPROC=ON
+make -j
+
+
+cd ~/bulletsim
+git checkout lite
+cd ~/build/bulletsim
+cmake ~/bulletsim
+make -j
+
+cd ~/build/rapprentice
+cmake ~/rapprentice/fastrapp
+make -j
+
+echo "export PYTHONPATH=~/trajopt:~/build/trajopt/lib:~/bulletsim:~/build/bulletsim/lib:~/rapprentice:~/build/rapprentice/lib:$PYTHONPATH" >> .bashrc

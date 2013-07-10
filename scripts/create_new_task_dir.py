@@ -14,7 +14,7 @@ os.mkdir(datadir)
 with open(osp.join(datadir, args.taskname + ".yaml"),"w") as fh:
     fh.write(
 """
-name: towel_grasps
-h5path: towel_grasps.h5
+name: %s
+h5path: %s
 bags:
-""")
+"""%(args.taskname, args.taskname+".h5"))

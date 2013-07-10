@@ -70,14 +70,17 @@ except ImportError:
     print "Couldn't import ros stuff"
 
 import cloudprocpy, trajoptpy, openravepy
-import os, numpy as np, h5py
+import os, numpy as np, h5py, time
 from numpy import asarray
 import importlib
 
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
     
-
+bad = ["demo5-seg00","demo17-seg00","demo11-seg02","demo2-seg00","demo3-seg00",
+       "failuretwo_3-seg01","demo11-seg01","demo21-seg01","demo21-seg00","demo1-seg00","demo10-seg00","demo35-seg00",
+       "demo28-seg00","demo14-seg00","demo24-seg00","demo12-seg00","demo4-seg00"
+       ]
     
     
 def redprint(msg):
@@ -172,6 +175,7 @@ def find_closest_auto(demofile, new_xyz):
     if args.parallel:
         from joblib import Parallel, delayed
     ds_clouds = get_downsampled_clouds(demofile)
+    keys = demofile.keys()
     ds_new = clouds.downsample(new_xyz,DS_SIZE)
     if args.parallel:
         costs = Parallel(n_jobs=3,verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
@@ -180,9 +184,12 @@ def find_closest_auto(demofile, new_xyz):
         for (i,ds_cloud) in enumerate(ds_clouds):
             costs.append(registration_cost(ds_cloud, ds_new))
             print "completed %i/%i"%(i+1, len(ds_clouds))
+    
+    for (i,key) in enumerate(keys):
+        if key in bad: costs[i] = np.inf
     print "costs\n",costs
     ibest = np.argmin(costs)
-    return demofile.keys()[ibest]
+    return keys[ibest]
             
             
 def arm_moved(joint_traj):    
@@ -278,10 +285,12 @@ def main():
             r2r = ros2rave.RosToRave(Globals.robot, asarray(fake_seg["joint_states"]["name"]))
             r2r.set_values(Globals.robot, asarray(fake_seg["joint_states"]["position"][0]))
         else:
-            
+            Globals.pr2.head.set_pan_tilt(0,1.2)
             Globals.pr2.rarm.goto_posture('side')
             Globals.pr2.larm.goto_posture('side')            
             Globals.pr2.join_all()
+            time.sleep(.5)
+
             
             Globals.pr2.update_rave()
             
@@ -297,7 +306,10 @@ def main():
             seg_name = find_closest_auto(demofile, new_xyz)
         
         seg_info = demofile[seg_name]
-        # redprint("using demo %s, description: %s"%(seg_name, seg_info["description"]))
+        redprint("closest demo: %s"%(seg_name))
+        if "endstates" in seg_name:
+            redprint("DONE!")
+            break
     
         ################################
 
