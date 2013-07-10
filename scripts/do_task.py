@@ -23,6 +23,7 @@ parser.add_argument("--animation", type=int, default=0)
 parser.add_argument("--parallel", type=int, default=1)
 
 parser.add_argument("--prompt", action="store_true")
+parser.add_argument("--show_neighbors", action="store_true")
 parser.add_argument("--select_manual", action="store_true")
 
 parser.add_argument("--fake_data_segment",type=str)
@@ -76,12 +77,7 @@ import importlib
 
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
-    
-bad = ["demo5-seg00","demo17-seg00","demo11-seg02","demo2-seg00","demo3-seg00",
-       "failuretwo_3-seg01","demo11-seg01","demo21-seg01","demo21-seg00","demo1-seg00","demo10-seg00","demo35-seg00",
-       "demo28-seg00","demo14-seg00","demo24-seg00","demo12-seg00","demo4-seg00"
-       ]
-    
+        
     
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
@@ -161,7 +157,7 @@ def find_closest_manual(demofile, _new_xyz):
 def registration_cost(xyz0, xyz1):
     scaled_xyz0, _ = registration.unit_boxify(xyz0)
     scaled_xyz1, _ = registration.unit_boxify(xyz1)
-    f,g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, n_iter=10)
+    f,g = registration.tps_rpm_bij(scaled_xyz0, scaled_xyz1, rot_reg=1e-3, n_iter=30)
     cost = registration.tps_reg_cost(f) + registration.tps_reg_cost(g)
     return cost
 
@@ -174,20 +170,27 @@ def get_downsampled_clouds(demofile):
 def find_closest_auto(demofile, new_xyz):
     if args.parallel:
         from joblib import Parallel, delayed
-    ds_clouds = get_downsampled_clouds(demofile)
+    demo_clouds = [asarray(seg["cloud_xyz"]) for seg in demofile.values()]
     keys = demofile.keys()
-    ds_new = clouds.downsample(new_xyz,DS_SIZE)
     if args.parallel:
-        costs = Parallel(n_jobs=3,verbose=100)(delayed(registration_cost)(ds_cloud, ds_new) for ds_cloud in ds_clouds)
+        costs = Parallel(n_jobs=3,verbose=100)(delayed(registration_cost)(demo_cloud, new_xyz) for demo_cloud in demo_clouds)
     else:
         costs = []
-        for (i,ds_cloud) in enumerate(ds_clouds):
-            costs.append(registration_cost(ds_cloud, ds_new))
-            print "completed %i/%i"%(i+1, len(ds_clouds))
+        for (i,ds_cloud) in enumerate(demo_clouds):
+            costs.append(registration_cost(ds_cloud, new_xyz))
+            print "completed %i/%i"%(i+1, len(demo_clouds))
     
-    for (i,key) in enumerate(keys):
-        if key in bad: costs[i] = np.inf
     print "costs\n",costs
+    if args.show_neighbors:
+        nshow = min(5, len(keys))
+        import cv2, rapprentice.cv_plot_utils as cpu
+        sortinds = np.argsort(costs)[:nshow]
+        near_rgbs = [asarray(demofile[keys[i]]["rgb"]) for i in sortinds]
+        bigimg = cpu.tile_images(near_rgbs, 1, nshow)
+        cv2.imshow("neighbors", bigimg)
+        print "press any key to continue"
+        cv2.waitKey()
+        
     ibest = np.argmin(costs)
     return keys[ibest]
             
@@ -320,9 +323,6 @@ def main():
         handles.append(Globals.env.plot3(old_xyz,5, (1,0,0)))
         handles.append(Globals.env.plot3(new_xyz,5, (0,0,1)))
 
-        
-        old_xyz = clouds.downsample(old_xyz, DS_SIZE)
-        new_xyz = clouds.downsample(new_xyz, DS_SIZE)
 
         scaled_old_xyz, src_params = registration.unit_boxify(old_xyz)
         scaled_new_xyz, targ_params = registration.unit_boxify(new_xyz)        

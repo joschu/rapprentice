@@ -16,6 +16,11 @@ import os.path as osp
 import itertools
 import yaml
 
+
+if "localhost" in os.getenv("ROS_MASTER_URI"):
+    raise Exception("on localhost!")
+
+
 started_bag = False
 started_video = False
 
@@ -23,6 +28,7 @@ localtime   = time.localtime()
 time_string  = time.strftime("%Y-%m-%d-%H-%M-%S", localtime)
 
 os.chdir(osp.dirname(args.master_file))
+
 
 if not osp.exists(args.master_file):
     yn = yes_or_no("master file does not exist. create?")
@@ -44,19 +50,23 @@ for suffix in itertools.chain("", (str(i) for i in itertools.count())):
         break
     print demo_name
 
-subprocess.call("killall XnSensorServer", shell=True)
-
 try:
 
     bag_cmd = "rosbag record /joint_states /joy -O %s"%demo_name
     print colorize(bag_cmd, "green")
     bag_handle = subprocess.Popen(bag_cmd, shell=True)
-    started_bag = True
+    time.sleep(1)
+    poll_result = bag_handle.poll() 
+    print "poll result", poll_result
+    if poll_result is not None:
+        raise Exception("problem starting video recording")
+    else: started_bag = True
     
     video_cmd = "record_rgbd_video --out=%s --downsample=%i"%(demo_name, args.downsample)
     print colorize(video_cmd, "green")
     video_handle = subprocess.Popen(video_cmd, shell=True)
     started_video = True
+
     
     time.sleep(9999)    
 
@@ -66,9 +76,11 @@ except KeyboardInterrupt:
 finally:
     
     if started_bag:
+        print "stopping bag"
         bag_handle.send_signal(signal.SIGINT)
         bag_handle.wait()
     if started_video:
+        print "stopping video"
         video_handle.send_signal(signal.SIGINT)
         video_handle.wait()
 
