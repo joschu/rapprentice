@@ -72,13 +72,14 @@ except ImportError:
     print "Couldn't import ros stuff"
 
 import cloudprocpy, trajoptpy, openravepy
-import os, numpy as np, h5py, time
+import os, numpy as np, h5py, time, datetime, os.path as osp
 from numpy import asarray
 import importlib
 
 cloud_proc_mod = importlib.import_module(args.cloud_proc_mod)
 cloud_proc_func = getattr(cloud_proc_mod, args.cloud_proc_func)
-        
+
+
     
 def redprint(msg):
     print colorize.colorize(msg, "red", bold=True)
@@ -203,9 +204,11 @@ def arm_moved(joint_traj):
 def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     ypred_nd = f.transform_points(x_nd)
     handles = []
-    handles.append(Globals.env.plot3(ypred_nd, 3, (0,1,0)))
+    handles.append(Globals.env.plot3(x_nd, 5, (1,0,0)))
+    handles.append(Globals.env.plot3(y_md, 5, (0,0,1)))
+    handles.append(Globals.env.plot3(ypred_nd, 5, (0,1,0)))
     handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, x_nd.min(axis=0), x_nd.max(axis=0), xres = .1, yres = .1, zres = .04))
-    Globals.viewer.Step()
+    Globals.viewer.Idle()
 
 
 def unif_resample(traj, max_diff, wt = None):        
