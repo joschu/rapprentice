@@ -1,9 +1,8 @@
 import cloudprocpy
 from rapprentice import berkeley_pr2, clouds
 import cv2, numpy as np
-
-DEBUG_PLOTS = False
-
+import skimage.morphology as skim
+DEBUG_PLOTS=False
 
 def extract_red(rgb, depth, T_w_k):
     """
@@ -15,7 +14,10 @@ def extract_red(rgb, depth, T_w_k):
     s = hsv[:,:,1]
     v = hsv[:,:,2]
     
-    red_mask = ((h<10) | (h>150)) & (s > 100) & (v > 100)
+    h_mask = (h<15) | (h>145)
+    s_mask = (s > 30 )
+    v_mask = (v > 100)
+    red_mask = h_mask & s_mask & v_mask
     
     valid_mask = depth > 0
     
@@ -24,23 +26,22 @@ def extract_red(rgb, depth, T_w_k):
     
     z = xyz_w[:,:,2]   
     z0 = xyz_k[:,:,2]
+
+    height_mask = xyz_w[:,:,2] > .7 # TODO pass in parameter
+    
+    good_mask = red_mask & height_mask & valid_mask
+    good_mask =   skim.remove_small_objects(good_mask,min_size=64)
+
     if DEBUG_PLOTS:
         cv2.imshow("z0",z0/z0.max())
         cv2.imshow("z",z/z.max())
+        cv2.imshow("hue", h_mask.astype('uint8')*255)
+        cv2.imshow("sat", s_mask.astype('uint8')*255)
+        cv2.imshow("val", v_mask.astype('uint8')*255)
+        cv2.imshow("final",good_mask.astype('uint8')*255)
         cv2.imshow("rgb", rgb)
         cv2.waitKey()
-    
-    height_mask = xyz_w[:,:,2] > .7 # TODO pass in parameter
-    
-    
-    good_mask = red_mask & height_mask & valid_mask
-    if DEBUG_PLOTS:
-        cv2.imshow("red",red_mask.astype('uint8')*255)
-        cv2.imshow("above_table", height_mask.astype('uint8')*255)
-        cv2.imshow("red and above table", good_mask.astype('uint8')*255)
-        print "press enter to continue"
-        cv2.waitKey()
-        
+            
         
     
 
