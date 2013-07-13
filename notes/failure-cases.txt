@@ -1,0 +1,66 @@
+In my view, (4), (7), and (8) are the most fundamental issues for making our algorithm work reliably in the regime of lots of data, after we have fixed some obvious problems that we already know how to fix.
+
+
+
+1. Registration chooses an obviously bad nearest neighbor.
+
+In the regime with a small number of demonstrations (< 10), this happens a fair amount.
+Sometimes there's a reasonable match, but the registration gets stuck in a bad local optimum, or it finds high cost because the algorithm (or at least my implementation) currently does not properly deal well with outliers and differences in point density.
+
+One mundane way to improve registration is to set up dataset of examples with ground truth, so that at least the algorithm will be tuned as well as possible.
+Registration has a lot of parameters.
+
+Not so surprisingly, these errors in recognition are less of a problem when comparing to many demonstrations--dumb distance functions work when you have a lot of data.
+
+2. Recognition aside, registration doesn't always find the best possible transformation
+
+There are a lot of parameters and they're hard to tune.
+One possibility is to improve the algorithm so it has fewer parameters.
+(e.g., there are extensions of TPS-RPM that are based on an EM algorithm and presumably deal with outliers better)
+Another possibility is to tune the algorithms on a dataset or learn from data in some way. 
+That's also worth doing. I'm not sure to what extent the problems I'm running into have been solved adequately by others. It's worth looking more into the literature and trying out other peoples'code.
+
+3. Trajectory is not reachable
+
+This will be solvable by adding in base movement.
+Base movement will be crucial for clothing manipulation.
+Our last-minute attempt to add this capability was only mildly helpful though sometimes failed comically (moving back and forth in an infinite loop). 
+Fortunately it was very easy to add in base movement with Alex's controller, and it seems to be pretty accurate too.
+
+This issue will also be partially resolved by accounting for reachability when choosing the nearest neighbor.
+
+4. Registration cost is not the right way to choose nearest neighbors
+
+Choice should also depend on demonstration quality and feasibility.
+We've talked about this and it'll be a good topic for a future paper.
+With our dataset of overhand knots, it's apparent that the nearest neighbor scheme just doesn't work very well.
+While the extra demonstrations sometimes produce neat looking recovery moves, the overall success rate is worse than if we just use one well-chosen example. Two reasons for this:
+(1) we have confirmed that some of the demonstrations in the dataset are bad. Some of them have obviously bad features like grabbing the rope too far from the end; for others it's less obvious. Quantitatively, we can verify in simulation that some simulations have a small region of succes, i.e., the execution fails after a small perturbation of the state.
+
+5. Rope falls off of the table
+
+Table is not at all considered by our algorithm, which assumes translational invariance. This causes occasional failures.
+
+6. Collisions with the table
+
+Currently I'm not collision checking against the table.
+That's because the robot's gripper has to dig into the table.
+These collisions look bad, but I've never seen it actually cause a failure.
+It's definitely worth fixing this problem, though.
+I could potentially change the formulation of the collision constraints to allow the gripper to dig a few cm into the table.
+
+7. Rope moves in an unexpected way.
+
+The robot makes a movement that's totally reasonable, but it results in a bad state of the rope, e.g., where an end is not reachable.
+For example, it's hard to predict when a piece of the rope will slide along the table.
+Even as a human, it's hard to judge which movements will work. 
+The ways to solve this problem are (a) choose robust movements, e.g. more two-arm movements, (b) choosing recovery moves needs to be very robust, (c) we must accept that challenging configurations will come up, and we should give the robot "reset" moves to restore the rope state.
+(d) react and re-plan in real-time
+
+8. Simple point cloud registration isn't able to finely discriminate between rope configurations with crucial differences
+
+First, it doesn't know about crossings.
+Second, often there are subtle but crucial differences in rope state that affect whether a grasp can occur.
+The registration doesn't account which part of the demonstration point cloud is relevant.
+
+This issue could be fixed by using more features when choosing the best possible demonstration--e.g. features that check how well the local grasped region from the "train" image matches up with the corresponding part of the "test" image, and another feature that looks at the generated trajectory and sees whether it's actually grabbing the point cloud or just grabbing air.
