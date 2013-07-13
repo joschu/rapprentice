@@ -10,6 +10,7 @@ from rapprentice import retiming, math_utils as mu,conversions as conv, func_uti
 import roslib
 roslib.load_manifest("pr2_controllers_msgs")
 roslib.load_manifest("move_base_msgs")
+roslib.load_manifest("tf")
 import pr2_controllers_msgs.msg as pcm
 import trajectory_msgs.msg as tm
 import sensor_msgs.msg as sm
@@ -17,6 +18,7 @@ import actionlib
 import rospy
 import geometry_msgs.msg as gm           
 import move_base_msgs.msg as mbm   
+import tf
 
 VEL_RATIO = .2
 ACC_RATIO = .3
@@ -89,6 +91,8 @@ class PR2(object):
         self.robot = self.env.GetRobots()[0]
 
         self.joint_listener = TopicListener("/joint_states", sm.JointState)
+
+        self.tf_listener = tf.TransformListener()
 
         # rave to ros conversions
         joint_msg = self.get_last_joint_message()        
@@ -478,9 +482,12 @@ class Base(object):
         rospy.loginfo('Move base action returned %d.' % finished)
         return finished 
 
-    def get_pose(self, ref_frame):
-        # todo: use AMCL directly instead of TF
-        raise NotImplementedError
+    def get_pose(self, ref_frame):        
+        # TODO: use AMCL instead of TF
+        trans, rot =  self.pr2.tf_listener.lookupTransform(ref_frame,"/base_footprint",rospy.Time(0))
+        import rapprentice.transformations as rt
+        yaw = rt.euler_from_quaternion(rot)[2]
+        return np.array([trans[0], trans[1], yaw])
 
     def set_twist(self,xya):
         vx, vy, omega = xya
