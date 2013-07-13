@@ -25,6 +25,7 @@ parser.add_argument("--parallel", type=int, default=1)
 parser.add_argument("--prompt", action="store_true")
 parser.add_argument("--show_neighbors", action="store_true")
 parser.add_argument("--select_manual", action="store_true")
+parser.add_argument("--log", action="store_true")
 
 parser.add_argument("--fake_data_segment",type=str)
 parser.add_argument("--fake_data_transform", type=float, nargs=6, metavar=("tx","ty","tz","rx","ry","rz"),
@@ -255,6 +256,13 @@ def main():
     
     trajoptpy.SetInteractive(args.interactive)
 
+
+    if args.log:
+        LOG_DIR = osp.join(osp.expanduser("~/Data/do_task_logs"), datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+        os.mkdir(LOG_DIR)
+        LOG_COUNT = 0
+                        
+
     if args.execution:
         rospy.init_node("exec_task",disable_signals=True)
         Globals.pr2 = PR2.PR2()
@@ -301,6 +309,16 @@ def main():
             T_w_k = berkeley_pr2.get_kinect_transform(Globals.robot)
             new_xyz = cloud_proc_func(rgb, depth, T_w_k)
     
+            #grab_end(new_xyz)
+
+    
+        if args.log:
+            LOG_COUNT += 1
+            import cv2
+            cv2.imwrite(osp.join(LOG_DIR,"rgb%i.png"%LOG_COUNT), rgb)
+            cv2.imwrite(osp.join(LOG_DIR,"depth%i.png"%LOG_COUNT), depth)
+            np.save(osp.join(LOG_DIR,"xyz%i.npy"%LOG_COUNT), new_xyz)
+        
         ################################    
         redprint("Finding closest demonstration")
         if args.select_manual:
@@ -310,10 +328,13 @@ def main():
         
         seg_info = demofile[seg_name]
         redprint("closest demo: %s"%(seg_name))
-        if "endstates" in seg_name:
+        if "done" in seg_name:
             redprint("DONE!")
             break
     
+    
+        if args.log:
+            with open(osp.join(LOG_DIR,"neighbor%i.txt"%LOG_COUNT),"w") as fh: fh.write(seg_name) 
         ################################
 
         redprint("Generating end-effector trajectory")    
