@@ -69,6 +69,11 @@ def joy_to_annotations(stamps, meanings):
     ind_tuples = find_disjoint_subsequences(meanings, ["look","start","stop"])
     for tup in ind_tuples:
         out.append({"look":stamps[tup[0]], "start":stamps[tup[1]], "stop":stamps[tup[2]]})
+    
+    done_inds = [i for (i,meaning) in enumerate(meanings) if meaning=="done"]
+    for ind in done_inds:
+        out.append({"done":None,"look":stamps[ind], "start":stamps[ind], "stop":stamps[ind]+1})
+    
     return out
 
 def add_kinematics_to_group(group, linknames, manipnames, jointnames, robot):
