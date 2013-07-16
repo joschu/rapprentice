@@ -1,10 +1,10 @@
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include <pcl/point_types.h>
 #include <pcl/io/openni_grabber.h>
-#define Header Header1   //holy shit this actually works
 #include <ros/ros.h>
+#include <sensor_msgs/Joy.h>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <fstream>
 #include <boost/filesystem.hpp>
 #include "config.hpp"
@@ -14,7 +14,8 @@ using namespace util;
 
 // parameters
 int downsample = 3;
-bool wait_for_prompt = false;
+bool on_prompt = false;
+bool on_triangle = false;
 bool verbose = true;
 ////
 
@@ -27,9 +28,18 @@ cv::Mat depth_mat(2, sizes,CV_16UC1);
 
 fs::path rgbd_dir;
 
+const int TRIANGLE_BUTTON = 12;
+
+void joy_callback(const sensor_msgs::Joy& joy) {
+  static int prev_button=0;
+  int cur_button = joy.buttons[TRIANGLE_BUTTON];
+  if (cur_button && !prev_button) frame_requested = true;
+  prev_button = cur_button;
+}
+
 void callback (const boost::shared_ptr<openni_wrapper::Image>& rgb, const boost::shared_ptr<openni_wrapper::DepthImage>& depth, float constant) {
   static int total_counter=0, save_counter=0;
-  if ( (wait_for_prompt && frame_requested) || (!wait_for_prompt && (total_counter % downsample == 0)) ) {
+  if ( (on_prompt && frame_requested) || (on_triangle && frame_requested) || (!on_prompt && !on_triangle && (total_counter % downsample == 0)) ) {
     stamps.push_back(ros::Time::now().toSec());
     const XnDepthPixel* depth_data = depth->getDepthMetaData().Data(); //unsigned short
 
@@ -44,8 +54,8 @@ void callback (const boost::shared_ptr<openni_wrapper::Image>& rgb, const boost:
 
     depth->fillDepthImageRaw(640, 480, (unsigned short*) depth_mat.data);
 
-    bool success1 = cv::imwrite( (rgbd_dir / (boost::format("depth%.2i.png")%save_counter).str()).string(), depth_mat);
-    bool success2 = cv::imwrite( (rgbd_dir / (boost::format("rgb%.2i.jpg")%save_counter).str()).string(), rgb_mat);
+    bool success1 = cv::imwrite( (rgbd_dir / (boost::format("depth%05d.png")%save_counter).str()).string(), depth_mat);
+    bool success2 = cv::imwrite( (rgbd_dir / (boost::format("rgb%05d.jpg")%save_counter).str()).string(), rgb_mat);
     if (!success1 || !success2) throw std::runtime_error("failed to write image");
     if (verbose) printf("saved rgb/depth images %i\n", save_counter);
 
@@ -66,12 +76,14 @@ int main(int argc, char** argv) {
 
   Config config;
   config.add(new Parameter<int>("downsample", &downsample, "ratio to downsample by"));
-  config.add(new Parameter<bool>("on_prompt", &wait_for_prompt, "only record image after user presses enter"));
+  config.add(new Parameter<bool>("on_prompt", &on_prompt, "only acquire image after user presses enter"));
+  config.add(new Parameter<bool>("on_triangle", &on_triangle, "only acquire image after user presses triangle"));
   config.add(new Parameter<bool>("verbose", &verbose, "verbose"));
   string outdir;
   config.add(new Parameter<string>("out", &outdir, "output directory"));
   CommandParser(config).read(argc, argv);
 
+  printf("record_rgbd_video: ROS_MASTER_URI=%s\n", (getenv("ROS_MASTER_URI") != NULL) ? getenv("ROS_MASTER_URI") : "null" );
 
 
   ros::init(argc, argv, "record_rgbd_video");
@@ -82,6 +94,9 @@ int main(int argc, char** argv) {
   boost::function<void(const boost::shared_ptr<openni_wrapper::Image>&, const boost::shared_ptr<openni_wrapper::DepthImage>&, float)> f(&callback);
   boost::signals2::connection c = interface.registerCallback (f);
 
+
+  ros::Subscriber joy_sub;
+  if (on_triangle) joy_sub = nh.subscribe("/joy", 1, joy_callback);
   
   if (outdir.empty()) rgbd_dir = fs::unique_path("rgbd_%%%%%%%");
   else rgbd_dir = outdir;
@@ -94,7 +109,7 @@ int main(int argc, char** argv) {
 
   interface.start();
     
-  if (wait_for_prompt) {
+  if (on_prompt) {
     while (ros::ok()) {
       printf("press enter to acquire next frame\n");
       cin.get();
@@ -102,8 +117,7 @@ int main(int argc, char** argv) {
     }
   }
   else {
-    printf("press ctrl-c to stop\n");
-    while (ros::ok()) usleep(1e6 * .01);
+    ros::spin();
   }
 
   interface.stop();

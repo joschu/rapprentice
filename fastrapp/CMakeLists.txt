@@ -30,7 +30,7 @@ if (OPT_ROS)
 
   set(ROS_INCLUDE_DIRS "/opt/ros/${ROS_VERSION}/include")
   set(ROS_LIB_DIR "/opt/ros/${ROS_VERSION}/lib")
-  set(ROS_LIBRARIES "${ROS_LIB_DIR}/libroscpp.so" "${ROS_LIB_DIR}/librostime.so")
+  set(ROS_LIBRARIES "${ROS_LIB_DIR}/libroscpp.so" "${ROS_LIB_DIR}/librostime.so" "${ROS_LIB_DIR}/librosconsole.so" "${ROS_LIB_DIR}/libroscpp_serialization.so")
 endif (OPT_ROS)
 
 include_directories(${PCL_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS} ${ROS_INCLUDE_DIRS})
