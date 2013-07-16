@@ -227,8 +227,8 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
 
     return f
 
-def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .005, rot_reg = 1e-3, 
-            plotting = False, plot_cb = None):
+def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .01, rot_reg = 1e-3, 
+            plotting = False, plot_cb = None, outliersd = 2., corr_reg=.5):
     """
     tps-rpm algorithm mostly as described by chui and rangaran
     reg_init/reg_final: regularization on curvature
@@ -236,7 +236,9 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
     plotting: 0 means don't plot. integer n means plot every n iterations
     """
     
-    _,d=x_nd.shape
+    n,d=x_nd.shape
+    m = y_md.shape[0]
+    
     regs = loglinspace(reg_init, reg_final, n_iter)
     rads = loglinspace(rad_init, rad_final, n_iter)
 
@@ -246,8 +248,10 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
     g = ThinPlateSpline(d)
     g.trans_g = -f.trans_g
 
+    p = np.log(m/10.) * np.exp(outliersd**2/2.)
+    q = np.log(n/10.) * np.exp(outliersd**2/2.)
 
-    # r_N = None
+    r_n = None
     
     for i in xrange(n_iter):
         xwarped_nd = f.transform_points(x_nd)
@@ -257,13 +261,30 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         invdist_nm = ssd.cdist(x_nd, ywarped_md,'euclidean')
         
         r = rads[i]
-        prob_nm = np.exp( -(fwddist_nm + invdist_nm) / (2*r) )
-        corr_nm, r_N, _ =  balance_matrix3(prob_nm, 10, 1e-1, 2e-1)
-        corr_nm += 1e-9
+        prob_nm = np.exp( (fwddist_nm + invdist_nm) / (-2*r) )
+        
+        rs_n = np.sqrt(np.array([abs(np.linalg.det(j)) for j in f.compute_jacobian(x_nd)]))
+        cs_m = np.sqrt(np.array([abs(np.linalg.det(j)) for j in g.compute_jacobian(y_md)]))
+        
+        # print percentiles(rs_n,np.r_[25,50,75]),percentiles(cs_m,np.r_[25,50,75])
+        rs_n[np.isnan(rs_n)] = 1
+        cs_m[np.isnan(cs_m)] = 1
+        
+        
+        r_n, c_m =  balance_matrix3(prob_nm, 10, p, q, r_n=r_n, rs_n = rs_n, cs_m = cs_m)
+        corr_nm = prob_nm * (r_n[:,None] * c_m[None,:])**corr_reg
+        corr_nm += 1e-10
+        corr_nm *= float(n) / corr_nm.sum()
+
+        # r_n, c_m =  balance_matrix3(prob_nm, 1, p, q, rs_n = rs_n, cs_m = cs_m)
+        # corr_nm = (r_n[:,None] * c_m[None,:]) + 1e-9
+        
+        
+        
+        # corr_nm = prob_nm / prob_nm.sum()  * np.sqrt(n*m)
         
         wt_n = corr_nm.sum(axis=1)
         wt_m = corr_nm.sum(axis=0)
-
 
         xtarg_nd = (corr_nm/wt_n[:,None]).dot(y_md)
         ytarg_md = (corr_nm/wt_m[None,:]).T.dot(x_nd)
@@ -271,9 +292,10 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         if plotting and i%plotting==0:
             plot_cb(x_nd, y_md, xtarg_nd, corr_nm, wt_n, f)
         
-        f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = rot_reg)
-        g = fit_ThinPlateSpline(y_md, ytarg_md, bend_coef = regs[i], wt_n=wt_m, rot_coef = rot_reg)
+        f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = rot_reg*regs[i])
+        g = fit_ThinPlateSpline(y_md, ytarg_md, bend_coef = regs[i], wt_n=wt_m, rot_coef = rot_reg*regs[i])
 
+    
     f._cost = tps.tps_cost(f.lin_ag, f.trans_g, f.w_ng, f.x_na, xtarg_nd, regs[i], wt_n=wt_n)/wt_n.mean()
     g._cost = tps.tps_cost(g.lin_ag, g.trans_g, g.w_ng, g.x_na, ytarg_md, regs[i], wt_n=wt_m)/wt_m.mean()
     return f,g
@@ -291,30 +313,19 @@ def logmap(m):
     return (1/(2*np.sin(theta))) * np.array([[m[2,1] - m[1,2], m[0,2]-m[2,0], m[1,0]-m[0,1]]]), theta
 
 
-def balance_matrix3(prob_nm, max_iter, p, outlierfrac, r_N = None):
+def balance_matrix3(prob_nm, max_iter, p, q, r_n = None, rs_n = None, cs_m = None):
     
     n,m = prob_nm.shape
-    prob_NM = np.empty((n+1, m+1), 'f4')
-    prob_NM[:n, :m] = prob_nm
-    prob_NM[:n, m] = p
-    prob_NM[n, :m] = p
-    prob_NM[n, m] = p*np.sqrt(n*m)
     
-    a_N = np.ones((n+1),'f4')
-    a_N[n] = m*outlierfrac
-    b_M = np.ones((m+1),'f4')
-    b_M[m] = n*outlierfrac
-    
-    if r_N is None: r_N = np.ones(n+1,'f4')
+    if r_n is None: r_n = np.ones(n,'f4')
+    if rs_n is None: rs_n = np.ones(n,'f4')
+    if cs_m is None: cs_m = (float(n)/m)*np.ones(m,'f4')
 
     for _ in xrange(max_iter):
-        c_M = b_M/r_N.dot(prob_NM)
-        r_N = a_N/prob_NM.dot(c_M)
+        c_m = cs_m/(r_n.dot(prob_nm) + p)
+        r_n = rs_n/(prob_nm.dot(c_m) + q)
 
-    prob_NM *= r_N[:,None]
-    prob_NM *= c_M[None,:]
-    
-    return prob_NM[:n, :m], r_N, c_M
+    return r_n, c_m
 
 def balance_matrix(prob_nm, p, max_iter=20, ratio_err_tol=1e-3):
     n,m = prob_nm.shape
