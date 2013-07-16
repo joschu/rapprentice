@@ -4,7 +4,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("demo_prefix")
 parser.add_argument("master_file")
-parser.add_argument("--downsample", default=3, type=int)
+parser.add_argument("--video_args", type=str, default="--downsample=10")
 args = parser.parse_args()
 
 import subprocess, signal
@@ -62,7 +62,7 @@ try:
         raise Exception("problem starting video recording")
     else: started_bag = True
     
-    video_cmd = "record_rgbd_video --out=%s --downsample=%i"%(demo_name, args.downsample)
+    video_cmd = "record_rgbd_video --out=%s %s"%(demo_name, args.video_args)
     print colorize(video_cmd, "green")
     video_handle = subprocess.Popen(video_cmd, shell=True)
     started_video = True
@@ -72,17 +72,19 @@ try:
 
 except KeyboardInterrupt:
     print colorize("got control-c", "green")
-
+except Exception:
+    import traceback
+    traceback.print_exc()
 finally:
     
     if started_bag:
         print "stopping bag"
-        bag_handle.send_signal(signal.SIGINT)
-        bag_handle.wait()
+        bag_handle.send_signal(signal.SIGINT)        
+        bag_handle.communicate()
     if started_video:
         print "stopping video"
         video_handle.send_signal(signal.SIGINT)
-        video_handle.wait()
+        video_handle.communicate()
 
 
 bagfilename = demo_name+".bag"
