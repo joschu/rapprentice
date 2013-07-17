@@ -231,9 +231,10 @@ def solve_eqp1(H, f, A):
     
     return x
     
-def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
+def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
+
 
     K_nn = tps_kernel_matrix(x_na)
     Q = np.c_[np.ones((n,1)), x_na, K_nn]
@@ -241,11 +242,18 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n):
     QWQ = Q.T.dot(WQ)
     H = QWQ
     H[d+1:,d+1:] += bend_coef * K_nn
+
     rot_coefs = np.ones(d) * rot_coef if np.isscalar(rot_coef) else rot_coef
-    H[1:d+1, 1:d+1] += np.diag(rot_coefs)
+    if rot_target is None: rot_target = np.eye(3)
+
+    D = np.diag(rot_coefs)
+    RD = rot_target.dot(D)
+    sRD = .5*(RD + RD.T)
+
+    H[1:d+1, 1:d+1] += D
     
     f = -WQ.T.dot(y_ng)
-    f[1:d+1,0:d] -= np.diag(rot_coefs)
+    f[1:d+1,0:d] -= RD
     
     A = np.r_[np.zeros((d+1,d+1)), np.c_[np.ones((n,1)), x_na]].T
     

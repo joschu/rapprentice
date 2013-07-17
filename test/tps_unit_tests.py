@@ -69,6 +69,28 @@ def fitting_methods_equivalent():
     assert np.allclose(trans2_g, trans3_g)
     assert np.allclose(w2_ng, w3_ng)
 
+@testing.testme
+def fitting_is_rotationally_invariant():
+    pts0 = np.random.randn(200,3)
+    pts1 = np.random.randn(200,3)
+    
+    bend_coef = 13.
+    rot_coefs = np.ones(3)#np.random.rand(3)
+    wt_n = np.random.rand(200)
+    
+    lin_ag, trans_g, w_ng = tps.tps_fit3(pts0, pts1, bend_coef, rot_coefs, wt_n, rot_target = np.eye(3))    
+    
+    # random rotation matrix
+    A = np.random.randn(3,3)
+    u,s,vh = np.linalg.svd(A.dot(A))
+    R = u.dot(vh)
+    
+    lin1_ag, trans1_g, w1_ng = tps.tps_fit3(pts0, pts1.dot(R), bend_coef, rot_coefs, wt_n, rot_target = R)    
+    
+    assert np.allclose(lin_ag, lin1_ag.dot(R.T))
+    assert np.allclose(trans1_g, trans_g.dot(R))
+    assert np.allclose(w1_ng, w_ng.dot(R))
+    
 
 # @testing.testme
 def check_that_nr_fit_runs():
@@ -179,6 +201,7 @@ if __name__ == "__main__":
     # tps.VERBOSE = True
     tps.ENABLE_SLOW_TESTS=True
     np.seterr(all='ignore')
-    testing.test_all()
+    fitting_is_rotationally_invariant()
+    # testing.test_all()
     # tps_regrot_with_quad_cost()
     # fitting_methods_equivalent()
