@@ -231,13 +231,19 @@ def solve_eqp1(H, f, A):
     
     return x
     
-def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None):
+# @profile    
+def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None, K_nn = None):
     if wt_n is None: wt_n = np.ones(len(x_na))
     n,d = x_na.shape
 
 
-    K_nn = tps_kernel_matrix(x_na)
-    Q = np.c_[np.ones((n,1)), x_na, K_nn]
+    if K_nn is None: K_nn = tps_kernel_matrix(x_na)
+    
+    Q = np.empty((n,n+d+1))
+    Q[:,0] = 1
+    Q[:,1:d+1] = x_na
+    Q[:,d+1:n+d+1] = K_nn
+
     WQ = wt_n[:,None] * Q
     QWQ = Q.T.dot(WQ)
     H = QWQ

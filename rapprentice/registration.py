@@ -227,6 +227,7 @@ def tps_rpm(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init =
 
     return f
 
+# @profile
 def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_init = .1, rad_final = .01, rot_reg = 1e-3, 
             plotting = False, plot_cb = None, outliersd = 2., corr_reg=.5, update_rot_target=False):
     """
@@ -248,18 +249,28 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
 
     f = ThinPlateSpline(d)
     f.trans_g = np.median(y_md,axis=0) - np.median(x_nd,axis=0)
+    f.lin_ag = np.eye(d)
+    f.w_ng = np.zeros((n,d))
+    f.x_na = x_nd
     
     g = ThinPlateSpline(d)
     g.trans_g = -f.trans_g
+    g.lin_ag = np.eye(d)
+    g.w_ng = np.zeros((n,d))
+    g.x_na = y_md
+
 
     p = np.log(m/10.) * np.exp(-outliersd**2/2.)
     q = np.log(n/10.) * np.exp(-outliersd**2/2.)
 
     r_n = None
     
+    Kx_nn = tps.tps_kernel_matrix(x_nd)
+    Ky_mm = tps.tps_kernel_matrix(y_md)
+    
     for i in xrange(n_iter):
-        xwarped_nd = f.transform_points(x_nd)
-        ywarped_md = g.transform_points(y_md)
+        xwarped_nd = np.dot(Kx_nn, f.w_ng) + np.dot(x_nd, f.lin_ag) + f.trans_g[None,:]
+        ywarped_md = np.dot(Ky_mm, g.w_ng) + np.dot(y_md, g.lin_ag) + g.trans_g[None,:]
         
         fwddist_nm = ssd.cdist(xwarped_nd, y_md,'sqeuclidean')
         invdist_nm = ssd.cdist(x_nd, ywarped_md,'sqeuclidean')
@@ -300,9 +311,10 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
         if plotting and i%plotting==0:
             cbdata = dict(x_nd = x_nd, y_md = y_md, corr_nm = corr_nm, f=f, g=g, iteration=i)
             plot_cb(cbdata)
-        
-        f = fit_ThinPlateSpline(x_nd, xtarg_nd, bend_coef = regs[i], wt_n=wt_n, rot_coef = regs[i], rot_target = f_rot_target)
-        g = fit_ThinPlateSpline(y_md, ytarg_md, bend_coef = regs[i], wt_n=wt_m, rot_coef = regs[i], rot_target = g_rot_target)
+
+        f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit3(x_nd, xtarg_nd, bend_coef=regs[i], wt_n=wt_n, rot_coef=regs[i], rot_target = f_rot_target, K_nn = Kx_nn)
+
+        g.lin_ag, g.trans_g, g.w_ng = tps.tps_fit3(y_md, ytarg_md, bend_coef=regs[i], wt_n=wt_n, rot_coef=regs[i], rot_target = g_rot_target, K_nn = Ky_mm)
         
         if update_rot_target:
             f_rot_target, g_rot_target = orthogonalize3_svd(np.array([f.lin_ag, g.lin_ag]))

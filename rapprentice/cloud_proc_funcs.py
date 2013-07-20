@@ -1,8 +1,9 @@
 import cloudprocpy
 from rapprentice import berkeley_pr2, clouds
 import cv2, numpy as np
-import skimage.morphology as skim
-DEBUG_PLOTS=False
+# import skimage.morphology as skim
+import scipy.ndimage as ndi
+DEBUG_PLOTS=True
 
 def extract_red(rgb, depth, T_w_k):
     """
@@ -14,7 +15,7 @@ def extract_red(rgb, depth, T_w_k):
     s = hsv[:,:,1]
     v = hsv[:,:,2]
     
-    h_mask = (h<15) | (h>145)
+    h_mask = (h<15) | (h>155)
     s_mask = (s > 30 )
     v_mask = (v > 100)
     red_mask = h_mask & s_mask & v_mask
@@ -29,8 +30,15 @@ def extract_red(rgb, depth, T_w_k):
 
     height_mask = xyz_w[:,:,2] > .7 # TODO pass in parameter
     
-    good_mask = red_mask & height_mask & valid_mask
-    good_mask =   skim.remove_small_objects(good_mask,min_size=64)
+    x_mask = xyz_w[:,:,0] < 2
+    
+    good_mask = red_mask & height_mask & x_mask & valid_mask
+    labels,_ = ndi.label(ndi.morphology.binary_dilation(good_mask, structure=np.ones((5,5),'bool')))
+    counts = np.bincount(labels.flatten())[1:]
+    sort_inds = (-counts).argsort()
+    if len(sort_inds) >= 2 and counts[sort_inds[1]] > 100: print "warning: removed a big cluster. cluster sizes: %s"%np.sort(counts)
+    good_mask &= (labels == sort_inds[0]+1)
+
 
     if DEBUG_PLOTS:
         cv2.imshow("z0",z0/z0.max())
