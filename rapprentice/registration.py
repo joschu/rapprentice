@@ -256,7 +256,7 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
     g = ThinPlateSpline(d)
     g.trans_g = -f.trans_g
     g.lin_ag = np.eye(d)
-    g.w_ng = np.zeros((n,d))
+    g.w_ng = np.zeros((m,d))
     g.x_na = y_md
 
 
@@ -314,7 +314,7 @@ def tps_rpm_bij(x_nd, y_md, n_iter = 20, reg_init = .1, reg_final = .001, rad_in
 
         f.lin_ag, f.trans_g, f.w_ng = tps.tps_fit3(x_nd, xtarg_nd, bend_coef=regs[i], wt_n=wt_n, rot_coef=regs[i], rot_target = f_rot_target, K_nn = Kx_nn)
 
-        g.lin_ag, g.trans_g, g.w_ng = tps.tps_fit3(y_md, ytarg_md, bend_coef=regs[i], wt_n=wt_n, rot_coef=regs[i], rot_target = g_rot_target, K_nn = Ky_mm)
+        g.lin_ag, g.trans_g, g.w_ng = tps.tps_fit3(y_md, ytarg_md, bend_coef=regs[i], wt_n=wt_m, rot_coef=regs[i], rot_target = g_rot_target, K_nn = Ky_mm)
         
         if update_rot_target:
             f_rot_target, g_rot_target = orthogonalize3_svd(np.array([f.lin_ag, g.lin_ag]))
