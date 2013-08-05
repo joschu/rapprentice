@@ -193,7 +193,7 @@ def rot_reg_works():
     a = .1
     R = np.array([[cos(a), sin(a),0],[-sin(a), cos(a), 0],[0,0,1]])
     y = x.dot(R.T)
-    f = registration.fit_ThinPlateSpline_RotReg(x, y, bend_coef = .1, rot_coefs = [.1,.1,0], scale_coef = 1)
+    f = registration.fit_ThinPlateSpline_RotReg(x, y, bend_coef = .1, rot_coefs = [1e-3,1e-3,1e-3], scale_coef = 1)
     assert np.allclose(R.T, f.lin_ag, atol = 1e-4)
     
 
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     # tps.VERBOSE = True
     tps.ENABLE_SLOW_TESTS=True
     np.seterr(all='ignore')
-    fitting_is_rotationally_invariant()
-    # testing.test_all()
+    # fitting_is_rotationally_invariant()
+    testing.test_all()
     # tps_regrot_with_quad_cost()
     # fitting_methods_equivalent()
