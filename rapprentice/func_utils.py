@@ -22,6 +22,7 @@ TAB_LEVEL = 0
 def verbose(fn):
     @functools.wraps(fn)
     def new_ver(*args,**kw):
+        #pylint disable=W0603
         global TAB_LEVEL
         print("\t"*TAB_LEVEL+"%s(%s)"%(fn.__name__,disp_args(*args,**kw)))
         TAB_LEVEL += 1

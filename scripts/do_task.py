@@ -211,37 +211,7 @@ def tpsrpm_plot_cb(x_nd, y_md, targ_Nd, corr_nm, wt_n, f):
     Globals.viewer.Idle()
 
 
-def unif_resample(traj, max_diff, wt = None):        
-    """
-    Resample a trajectory so steps have same length in joint space    
-    """
-    import scipy.interpolate as si
-    tol = .005
-    if wt is not None: 
-        wt = np.atleast_2d(wt)
-        traj = traj*wt
-        
-        
-    dl = mu.norms(traj[1:] - traj[:-1],1)
-    l = np.cumsum(np.r_[0,dl])
-    goodinds = np.r_[True, dl > 1e-8]
-    deg = min(3, sum(goodinds) - 1)
-    if deg < 1: return traj, np.arange(len(traj))
-    
-    nsteps = max(int(np.ceil(float(l[-1])/max_diff)),2)
-    newl = np.linspace(0,l[-1],nsteps)
 
-    ncols = traj.shape[1]
-    colstep = 10
-    traj_rs = np.empty((nsteps,ncols)) 
-    for istart in xrange(0, traj.shape[1], colstep):
-        (tck,_) = si.splprep(traj[goodinds, istart:istart+colstep].T,k=deg,s = tol**2*len(traj),u=l[goodinds])
-        traj_rs[:,istart:istart+colstep] = np.array(si.splev(newl,tck)).T
-    if wt is not None: traj_rs = traj_rs/wt
-
-    newt = np.interp(newl, l, np.arange(len(traj)))
-
-    return traj_rs, newt
 
 
 ###################
@@ -354,7 +324,7 @@ def main():
                                        plotting=5 if args.animation else 0,rot_reg=np.r_[1e-4,1e-4,1e-1], n_iter=50, reg_init=10, reg_final=.1)
         f = registration.unscale_tps(f, src_params, targ_params)
         
-        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0)-np.r_[0,0,.1], old_xyz.max(axis=0)+np.r_[0,0,.1], xres = .1, yres = .1, zres = .04))        
+        handles.extend(plotting_openrave.draw_grid(Globals.env, f.transform_points, old_xyz.min(axis=0)-np.r_[0,0,.1], old_xyz.max(axis=0)+np.r_[0,0,.1], xres = .1, yres = .1, zres = .04))
 
         link2eetraj = {}
         for lr in 'lr':
@@ -390,7 +360,7 @@ def main():
             if len(lr2oldtraj) > 0:
                 old_total_traj = np.concatenate(lr2oldtraj.values(), 1)
                 JOINT_LENGTH_PER_STEP = .1
-                _, timesteps_rs = unif_resample(old_total_traj, JOINT_LENGTH_PER_STEP)
+                _, timesteps_rs = resampling.unif_resample2(old_total_traj, JOINT_LENGTH_PER_STEP)
             ####
 
         

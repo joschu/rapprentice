@@ -83,6 +83,66 @@ def smooth_positions(positions, tol):
     spos = np.r_[si.splev(times,tck,der=0)].T
     return spos
 
+
+def unif_resample3(Y, n, x = None, weights=None, tol=.0001, deg=3, n_length_eval=300):
+    """
+    interpolate the function Y(x)
+    
+    
+    Input:
+    Y:   ndarray with shape (T,K) 
+    n:   integer number of samples
+    x:   ndarray with shape (T,). Optional: if omitted, it's assuped to be arange(len(Y))
+
+    tol: informally, it's the acceptable error in the interpolated function.         
+         interpolating spline Y computed internally will satisfy
+          \sum_i | Y(x_i) - Y_i |^2  <= T * tol^2
+
+    weights: not implemented. but you may want to take a measure of path-length
+         that weights different components of Y differently.
+    deg:  degree of spline
+    n_length_eval: higher -> result is more precisely uniform
+    
+    
+    Returns:
+    Yunif   resampled Y values
+    xunif   resampled x values   
+    
+    So if you plot (xunif, Yunif[:,i])
+    it should look like the graph of (x,Y[:,i])
+    
+    Yunif approximately has norm(Yunif[i+1] - Yunif[i]) constant for i=0,1,2,...
+    
+    """
+    if Y.ndim == 1: Y = Y[:,None]
+    if x is None: x = np.arange(len(Y))
+    if weights is not None: raise NotImplementedError
+    
+    goodinds = np.r_[0,1+np.flatnonzero(x[1:]-x[:-1] > 1e-10)] 
+    splines = [si.UnivariateSpline(x[goodinds], y, s = tol**2 * (n+1)) for y in Y[goodinds].T]
+    
+    xup = np.linspace(0,x[-1],n_length_eval) # For evaluating path length integral
+    
+    def _eval_splines(_splines, _x):
+        return np.array([spline(_x) for spline in splines]).T
+        
+    Yup = _eval_splines(splines, xup)
+    
+
+    dl = mu.norms( Yup[1:] - Yup[:-1], 1)
+    l = np.empty(n_length_eval)
+    l[0] = 0
+    l[1:] = np.cumsum(dl)
+    
+    newl = np.linspace(0,l[-1],n)
+    good = np.r_[True,dl>0]
+    newx = np.interp(newl, l[good], xup[good])
+    
+    return _eval_splines(splines, newx), newx
+    
+    
+        
+
 def unif_resample(x,n,weights,tol=.001,deg=3):    
     x = np.atleast_2d(x)
     weights = np.atleast_2d(weights)
@@ -97,6 +157,56 @@ def unif_resample(x,n,weights,tol=.001,deg=3):
     out_scaled = np.array(si.splev(newu,tck)).T
     out = out_scaled/weights
     return out
+    
+    
+def unif_resample4(Y,n,tol=.0001, deg=3):    
+    Y = np.atleast_2d(Y)
+
+    dl = mu.norms(Y[1:] - Y[:-1],1)
+    l = np.cumsum(np.r_[0,dl])
+    goodinds = np.r_[0,1+np.flatnonzero(dl > 1e-10)] 
+    
+    splines = [si.UnivariateSpline(l[goodinds], y[goodinds], s = tol**2*len(l)) for y in Y.T]
+    
+    def _eval_splines(_splines, _x):
+        return np.array([spline(_x) for spline in splines]).T
+
+    newl = np.linspace(0,l[-1],n)
+    newx = np.interp(newl, l[goodinds], goodinds)
+    return _eval_splines(splines, newl), newx
+        
+    
+def unif_resample2(traj, max_diff, wt = None):        
+    """
+    Resample a trajectory so steps have same length in joint space    
+    """
+    import scipy.interpolate as si
+    tol = .005
+    if wt is not None: 
+        wt = np.atleast_2d(wt)
+        traj = traj*wt
+        
+        
+    dl = mu.norms(traj[1:] - traj[:-1],1)
+    l = np.cumsum(np.r_[0,dl])
+    goodinds = np.r_[True, dl > 1e-8]
+    deg = min(3, sum(goodinds) - 1)
+    if deg < 1: return traj, np.arange(len(traj))
+    
+    nsteps = max(int(np.ceil(float(l[-1])/max_diff)),2)
+    newl = np.linspace(0,l[-1],nsteps)
+
+    ncols = traj.shape[1]
+    colstep = 10
+    traj_rs = np.empty((nsteps,ncols)) 
+    for istart in xrange(0, traj.shape[1], colstep):
+        (tck,_) = si.splprep(traj[goodinds, istart:istart+colstep].T,k=deg,s = tol**2*len(traj),u=l[goodinds])
+        traj_rs[:,istart:istart+colstep] = np.array(si.splev(newl,tck)).T
+    if wt is not None: traj_rs = traj_rs/wt
+
+    newt = np.interp(newl, l, np.arange(len(traj)))
+
+    return traj_rs, newt    
 
 def test_resample():
     x = [0,0,0,1,2,3,4,4,4]
@@ -139,9 +249,35 @@ def interp_hmats(newtimes, oldtimes, oldhmats):
     newposes = np.empty((len(newtimes), 7))
     newposes[:,4:7] = mu.interp2d(newtimes, oldtimes, oldposes[:,4:7])
     newposes[:,0:4] = interp_quats(newtimes, oldtimes, oldposes[:,0:4])
-    newhmats = openravepy.matrixFromPoses(newposes)
+    newhmats = np.array(openravepy.matrixFromPoses(newposes))
     return newhmats
+    
+def test_resample3():
+    x0 = np.random.randn(10,1)**2
+    x0 = np.repeat(x0,10,axis=0)
+    t0 = np.arange(len(x0))
+    
+    # t0 = np.repeat(t0,10,axis=0)
+    
+    x2, t2 = unif_resample2(x0,.1)
+    x3, t3 = unif_resample3(x0,100)
+    x4, t4 = unif_resample4(x0,100)
+    import matplotlib.pyplot as plt
+    
+    print "uniformity:"
+    print 2,np.var(mu.norms(x2[1:] - x2[:-1],1))
+    print 3,np.var(mu.norms(x3[1:] - x3[:-1],1))
+    print 4, np.var(mu.norms(x4[1:] - x4[:-1],1))
+    plt.plot(t0, x0[:,0],'x-',ms=10)
+    plt.plot(t2,x2[:,0],'.')
+    plt.plot(t3,x3[:,0],'.')
+    plt.plot(t4,x4[:,0],'.')
+    plt.legend(['orig','2','3','4'])
+    plt.show()
+    
+    
 
 if __name__ == "__main__":
-    test_resample()
-    test_resample_big()
+    test_resample3()
+    # test_resample()
+    # test_resample_big()

@@ -254,7 +254,7 @@ def tps_fit3(x_na, y_ng, bend_coef, rot_coef, wt_n, rot_target = None, K_nn = No
 
     D = np.diag(rot_coefs)
     RD = rot_target.dot(D)
-    sRD = .5*(RD + RD.T)
+    # sRD = .5*(RD + RD.T)
 
     H[1:d+1, 1:d+1] += D
     

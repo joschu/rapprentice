@@ -44,3 +44,4 @@ fastmath
 *.wpu
 
 doc/_build
+gurobi.log

@@ -165,7 +165,6 @@ def get_video_frames(video_dir, frame_stamps):
 
     frame_inds = searchsortednearest(video_stamps, frame_stamps)
     
-    from glob import glob
     rgbnames = glob(osp.join(video_dir, "rgb*.jpg"))
     depthnames = glob(osp.join(video_dir, "depth*.png"))
         

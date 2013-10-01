@@ -1,7 +1,7 @@
 import openravepy,trajoptpy, numpy as np, json
 
 
-def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
+def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj,penalty="l1"):
         
     n_steps = len(new_hmats)
     assert old_traj.shape[0] == n_steps
@@ -38,6 +38,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
         }
     }
         
+        
     poses = [openravepy.poseFromMatrix(hmat) for hmat in new_hmats]
     for (i_step,pose) in enumerate(poses):
         request["costs"].append(
@@ -48,7 +49,8 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
                 "link":ee_linkname,
                 "timestep":i_step,
                 "pos_coeffs":[10,10,10],
-                "rot_coeffs":[10,10,10]
+                "rot_coeffs":[10,10,10],
+                "penalty_type":penalty
              }
             })
 
@@ -57,7 +59,7 @@ def plan_follow_traj(robot, manip_name, ee_link, new_hmats, old_traj):
     result = trajoptpy.OptimizeProblem(prob) # do optimization
     traj = result.GetTraj()    
         
-    saver = openravepy.RobotStateSaver(robot)
+    _saver = openravepy.RobotStateSaver(robot)
     pos_errs = []
     for i_step in xrange(1,n_steps):
         row = traj[i_step]

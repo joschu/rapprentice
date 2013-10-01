@@ -19,6 +19,7 @@ def depth_to_xyz(depth,f=DEFAULT_F):
     assert depth.shape == (480, 640)
     XYZ = np.empty((480,640,3))
     Z = XYZ[:,:,2] = depth / 1000. # convert mm -> meters
+    Z[depth==0] = np.nan
     XYZ[:,:,0] = (x - cx)*(Z/f)
     XYZ[:,:,1] = (y - cy)*(Z/f)
 

@@ -175,7 +175,7 @@ def unscale_tps_3d(f, src_params, targ_params):
     return fnew
 
 def unscale_tps(f, src_params, targ_params):
-    """Only works in 3d!!"""
+    print "todo: test unscale_tps"
     p,q = src_params
     r,s = targ_params
     

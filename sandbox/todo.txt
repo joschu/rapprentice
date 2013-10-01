@@ -1,0 +1,4 @@
+- modify training to use 1,2,3,4,5 instead of -,+,*
+- also while we're at it we can check which trajectory is closest
+  to the one that was actually executed.
+- add the table in

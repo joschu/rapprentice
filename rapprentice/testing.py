@@ -18,6 +18,7 @@ def test_all(stop=False):
             t_elapsed = time() - t_start
             print colorize("PASSED (%.3f sec)"%t_elapsed,"blue")
             nPass += 1
+        #pylint: disable=W0703
         except Exception:    
             traceback.print_exc(file=sys.stdout)
             if stop: raise
